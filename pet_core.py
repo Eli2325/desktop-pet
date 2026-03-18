@@ -703,7 +703,7 @@ class DesktopPet(QMainWindow):
     def _update_hud(self):
         if not self.hud_enabled:
             return
-        snap = 2
+        snap = 4
         x = int(self.pos_x)
         y = int(self.pos_y)
         left = self.screen_rect.left()
@@ -918,7 +918,7 @@ class DesktopPet(QMainWindow):
             pix = screen.grabWindow(0)
             try:
                 if pix.width() > 1280:
-                    pix = pix.scaledToWidth(1280, Qt.TransformationMode.SmoothTransformation)
+                    pix = pix.scaledToWidth(1280, Qt.TransformationMode.FastTransformation)
             except Exception:
                 pass
             arr = QByteArray()
@@ -2717,7 +2717,9 @@ class DesktopPet(QMainWindow):
         self.activity_bubble.show()
         self.activity_bubble.raise_()
 
-        self._activity_bubble_timer.start(int(self._activity_show_ms))
+        # 根据文本长度自适应显示时长：基础2000ms + 每字60ms，上限12000ms
+        adaptive_ms = min(12000, 2000 + len(self.activity_bubble.text()) * 60)
+        self._activity_bubble_timer.start(max(int(self._activity_show_ms), adaptive_ms))
 
 
     def game_loop(self):

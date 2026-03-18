@@ -398,6 +398,7 @@ class ChatConsole(QDialog):
             lbl_text.setWordWrap(True)
             lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             row.addWidget(lbl_text)
+            _f = lbl_text.font(); _f.setFamily("Segoe UI Emoji"); lbl_text.setFont(_f)
         else:
             q_short = q[:80] + ("…" if len(q) > 80 else "")
             a_short = a[:80] + ("…" if len(a) > 80 else "")
@@ -406,6 +407,7 @@ class ChatConsole(QDialog):
             lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             lbl_text.setMaximumHeight(lbl_text.fontMetrics().lineSpacing() * 3 + 4)
             row.addWidget(lbl_text)
+            _f = lbl_text.font(); _f.setFamily("Segoe UI Emoji"); lbl_text.setFont(_f)
 
         btns = QHBoxLayout()
         b_expand = QToolButton()
