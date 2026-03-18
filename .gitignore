@@ -10,3 +10,4 @@ dist/
 *.spec
 v1.0/
 pet_core_backup.py
+*.txt
