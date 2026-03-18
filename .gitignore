@@ -5,3 +5,8 @@ __pycache__/
 venv/
 *.log
 logs/
+build/
+dist/
+*.spec
+v1.0/
+pet_core_backup.py
