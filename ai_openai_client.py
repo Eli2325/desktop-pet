@@ -35,6 +35,15 @@ def _is_reasoner_model(model: str) -> bool:
     return bool(re.search(r"reasoner|deepseek-r1|o1-|o3-", m))
 
 
+def _strip_think_tags(text: str) -> str:
+    """去除思维链标签 <think>...</think>，不管模型是否是reasoner都执行。"""
+    # 处理完整的 <think>...</think> 块
+    text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+    # 处理只有开头没有结尾的 <think>（模型输出被截断的情况）
+    text = re.sub(r"<think>[\s\S]*$", "", text, flags=re.IGNORECASE)
+    return text.strip()
+
+
 def _smart_proxies(base_url: str) -> Optional[dict]:
     if is_domestic_api(base_url):
         return {"http": "", "https": ""}
@@ -132,12 +141,16 @@ def chat_completion(
     text = ""
     try:
         msg_obj = data["choices"][0]["message"]
-        # 优先读 content；思维链模型（R1/o1/o3等）content 可能为 null，
-        # 此时真正的回复在 reasoning_content 字段
-        text = msg_obj.get("content") or ""
+        # 优先读 content，去除思维链标签后使用
+        raw_content = msg_obj.get("content") or ""
+        text = _strip_think_tags(raw_content)
         if not text:
-            text = msg_obj.get("reasoning_content") or ""
-        if not text:
+            # content 为空或全是思维链：检查 reasoning_content
+            # 但 reasoning_content 是思考过程，不应直接显示给用户
+            # 此时说明模型没有生成正文，报错提示重试
+            reasoning = msg_obj.get("reasoning_content") or ""
+            if reasoning:
+                raise RuntimeError("模型只返回了思考过程，未生成正文回复，请重试。")
             raise RuntimeError("模型返回了空内容，请检查模型配置或稍后重试。")
     except RuntimeError:
         raise

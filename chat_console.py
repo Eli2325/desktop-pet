@@ -396,14 +396,14 @@ class ChatConsole(QDialog):
         if expanded:
             lbl_text = QLabel(full_text)
             lbl_text.setWordWrap(True)
-            lbl_text.setStyleSheet("font-size:11px;")
+            lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             row.addWidget(lbl_text)
         else:
             q_short = q[:80] + ("…" if len(q) > 80 else "")
             a_short = a[:80] + ("…" if len(a) > 80 else "")
             lbl_text = QLabel(f"Q: {q_short}\nA: {a_short}")
             lbl_text.setWordWrap(True)
-            lbl_text.setStyleSheet("font-size:11px;")
+            lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             lbl_text.setMaximumHeight(lbl_text.fontMetrics().lineSpacing() * 3 + 4)
             row.addWidget(lbl_text)
 
@@ -755,8 +755,10 @@ class ChatConsole(QDialog):
         settings = load_ai_settings()
         max_len = settings.max_bubble_length
         bubble_text = response_text
-        if max_len > 0 and len(bubble_text) > max_len:
-            bubble_text = bubble_text[:max_len] + "…"
+        # 气泡显示上限 = 用户设定字数 + 20 缓冲，避免模型略微超出时被硬截断
+        bubble_limit = max_len + 20 if max_len > 0 else 0
+        if bubble_limit > 0 and len(bubble_text) > bubble_limit:
+            bubble_text = bubble_text[:bubble_limit] + "…"
 
         extra = {"source": "console"}
         if self._pending_update_log_id:

@@ -985,8 +985,10 @@ class DesktopPet(QMainWindow):
             bubble_text = text
             try:
                 bl = int(getattr(s, "max_bubble_length", 60) or 60)
-                if bl > 0 and len(bubble_text) > bl:
-                    bubble_text = bubble_text[:bl] + "\u2026"
+                # 气泡显示上限 = 用户设定字数 + 20 缓冲
+                bubble_limit = bl + 20 if bl > 0 else 0
+                if bubble_limit > 0 and len(bubble_text) > bubble_limit:
+                    bubble_text = bubble_text[:bubble_limit] + "\u2026"
             except Exception:
                 pass
             try:

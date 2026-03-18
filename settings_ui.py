@@ -1263,6 +1263,23 @@ class SettingsDialog(QDialog):
             pass
 
         self._dirty = False
+        # 保存后同步控制台的勾选状态
+        try:
+            console = getattr(self.pet, "_chat_console", None)
+            if console is not None:
+                # 同步自动巡视
+                if hasattr(console, "_sync_auto_watch_from_pet"):
+                    console._sync_auto_watch_from_pet()
+                # 同步应用气泡
+                if hasattr(console, "cb_app_bubbles"):
+                    console.cb_app_bubbles.setChecked(
+                        bool(getattr(self.pet, "activity_bubbles_enabled", True))
+                    )
+                # 同步安静模式
+                if hasattr(console, "cb_quiet"):
+                    console.cb_quiet.setChecked(bool(getattr(self.pet, "quiet_mode", False)))
+        except Exception:
+            pass
         # 用非阻塞方式提示，避免MessageBox暂停game_loop导致时间戳错乱
         from PyQt6.QtCore import QTimer as _QTimer
         _QTimer.singleShot(0, lambda: QMessageBox.information(self, "已保存", "设置已保存并应用。"))
