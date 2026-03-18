@@ -132,7 +132,15 @@ def chat_completion(
     text = ""
     try:
         msg_obj = data["choices"][0]["message"]
+        # 优先读 content；思维链模型（R1/o1/o3等）content 可能为 null，
+        # 此时真正的回复在 reasoning_content 字段
         text = msg_obj.get("content") or ""
+        if not text:
+            text = msg_obj.get("reasoning_content") or ""
+        if not text:
+            raise RuntimeError("模型返回了空内容，请检查模型配置或稍后重试。")
+    except RuntimeError:
+        raise
     except Exception:
         text = ""
     usage = data.get("usage") if isinstance(data, dict) else {}

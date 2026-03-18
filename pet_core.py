@@ -582,19 +582,11 @@ class DesktopPet(QMainWindow):
 
         menu = QMenu()
 
-        act_reset = QAction("复位/召回", self)
-        act_reset.triggered.connect(self.reset_to_home)
-        menu.addAction(act_reset)
-
         self.act_quiet = QAction("安静模式", self)
         self.act_quiet.setCheckable(True)
         self.act_quiet.setChecked(self.quiet_mode)
         self.act_quiet.triggered.connect(self.toggle_quiet_mode)
         menu.addAction(self.act_quiet)
-
-        act_force_sleep = QAction("强制睡眠", self)
-        act_force_sleep.triggered.connect(self.force_sleep)
-        menu.addAction(act_force_sleep)
 
         self.act_activity = QAction("活动气泡", self)
         self.act_activity.setCheckable(True)
@@ -606,8 +598,6 @@ class DesktopPet(QMainWindow):
         self.act_hud.setCheckable(True)
         self.act_hud.setChecked(self.hud_enabled)
         self.act_hud.triggered.connect(self.toggle_hud)
-        menu.addAction(self.act_hud)
-
         act_chat = QAction("桌宠控制台", self)
         act_chat.triggered.connect(self.open_chat_console)
         menu.addAction(act_chat)
@@ -762,15 +752,20 @@ class DesktopPet(QMainWindow):
         act_quiet.triggered.connect(self.toggle_quiet_mode)
         menu.addAction(act_quiet)
 
+        act_activity = QAction("活动气泡", self)
+        act_activity.setCheckable(True)
+        act_activity.setChecked(self.activity_bubbles_enabled)
+        act_activity.triggered.connect(self.toggle_activity_bubbles)
+        menu.addAction(act_activity)
+
         act_force_sleep = QAction("强制睡眠", self)
         act_force_sleep.triggered.connect(self.force_sleep)
         menu.addAction(act_force_sleep)
 
-        act_hud = QAction("HUD(调试)", self)
-        act_hud.setCheckable(True)
-        act_hud.setChecked(self.hud_enabled)
-        act_hud.triggered.connect(self.toggle_hud)
-        menu.addAction(act_hud)
+        menu.addSeparator()
+        act_chat = QAction("桌宠控制台", self)
+        act_chat.triggered.connect(self.open_chat_console)
+        menu.addAction(act_chat)
 
         act_settings = QAction("设置...  Settings", self)
         act_settings.triggered.connect(self.open_settings)
@@ -2043,11 +2038,15 @@ class DesktopPet(QMainWindow):
                 self.act_activity.setChecked(self.activity_bubbles_enabled)
             except Exception:
                 pass
+        # sync chat console checkbox
+        try:
+            if self._chat_console and hasattr(self._chat_console, "cb_app_bubbles"):
+                self._chat_console.cb_app_bubbles.setChecked(self.activity_bubbles_enabled)
+        except Exception:
+            pass
         if not self.activity_bubbles_enabled:
-            # 关掉就立刻清空队列 + 隐藏
             self.activity_pending = None
             self.activity_bubble.hide()
-
     def set_activity_bubbles_enabled(self, enabled: bool):
         """供聊天窗使用：显式开/关活动气泡（不依赖toggle的当前状态）。"""
         try:
