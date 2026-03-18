@@ -251,6 +251,8 @@ class SettingsDialog(QDialog):
             self.ai_model.textChanged.connect(self._mark_dirty)
         if hasattr(self, "ai_system_prompt"):
             self.ai_system_prompt.textChanged.connect(self._mark_dirty)
+        if hasattr(self, "ai_min_reply"):
+            self.ai_min_reply.valueChanged.connect(self._mark_dirty)
         if hasattr(self, "ai_max_bubble"):
             self.ai_max_bubble.valueChanged.connect(self._mark_dirty)
         if hasattr(self, "ai_max_memory"):
@@ -1012,8 +1014,10 @@ class SettingsDialog(QDialog):
                 self._populate_preset_combo()
             if hasattr(self, "ai_system_prompt"):
                 self.ai_system_prompt.setPlainText(s.system_prompt or "")
+            if hasattr(self, "ai_min_reply"):
+                self.ai_min_reply.setValue(int(getattr(s, "reply_min_length", 20) or 20))
             if hasattr(self, "ai_max_bubble"):
-                self.ai_max_bubble.setValue(int(s.max_bubble_length or 60))
+                self.ai_max_bubble.setValue(int(getattr(s, "reply_max_length", 80) or 80))
             if hasattr(self, "ai_max_memory"):
                 self.ai_max_memory.setValue(int(s.max_memory_turns or 5))
             if hasattr(self, "ai_auto_screenshot"):
@@ -1040,8 +1044,10 @@ class SettingsDialog(QDialog):
             s.model = (self.ai_model.text() or "").strip() or s.model
             if hasattr(self, "ai_system_prompt"):
                 s.system_prompt = (self.ai_system_prompt.toPlainText() or "").strip() or s.system_prompt
+            if hasattr(self, "ai_min_reply"):
+                s.reply_min_length = self.ai_min_reply.value()
             if hasattr(self, "ai_max_bubble"):
-                s.max_bubble_length = self.ai_max_bubble.value()
+                s.reply_max_length = self.ai_max_bubble.value()
             if hasattr(self, "ai_max_memory"):
                 s.max_memory_turns = self.ai_max_memory.value()
             if hasattr(self, "ai_auto_screenshot"):
@@ -2674,14 +2680,23 @@ class SettingsDialog(QDialog):
         grid_persona = QGridLayout()
         grid_persona.setSpacing(8)
 
-        lbl_bl = QLabel("气泡字数上限")
-        lbl_bl.setToolTip("桌面气泡显示的最大字符数，超出部分截断（0=不限）")
+        lbl_bl = QLabel("回复最少字数")
+        lbl_bl.setToolTip("建议 AI 每次回复至少多少字（0=不限下限）")
         grid_persona.addWidget(lbl_bl, 0, 0)
+        self.ai_min_reply = QSpinBox()
+        self.ai_min_reply.setRange(0, 500)
+        self.ai_min_reply.setSingleStep(10)
+        self.ai_min_reply.setSuffix(" 字")
+        grid_persona.addWidget(self.ai_min_reply, 0, 1)
+
+        lbl_bl2 = QLabel("回复最多字数")
+        lbl_bl2.setToolTip("建议 AI 每次回复最多多少字（0=不限上限），气泡完整显示不截断")
+        grid_persona.addWidget(lbl_bl2, 0, 2)
         self.ai_max_bubble = QSpinBox()
         self.ai_max_bubble.setRange(0, 500)
         self.ai_max_bubble.setSingleStep(10)
         self.ai_max_bubble.setSuffix(" 字")
-        grid_persona.addWidget(self.ai_max_bubble, 0, 1)
+        grid_persona.addWidget(self.ai_max_bubble, 0, 3)
 
         lbl_mt = QLabel("记忆轮数")
         lbl_mt.setToolTip("保留最近 N 轮对话作为上下文发送给 AI（0=不带历史）")
@@ -2878,8 +2893,10 @@ class SettingsDialog(QDialog):
         s.model = (self.ai_model.text() or "").strip() or s.model
         if hasattr(self, "ai_system_prompt"):
             s.system_prompt = (self.ai_system_prompt.toPlainText() or "").strip() or s.system_prompt
+        if hasattr(self, "ai_min_reply"):
+            s.reply_min_length = self.ai_min_reply.value()
         if hasattr(self, "ai_max_bubble"):
-            s.max_bubble_length = self.ai_max_bubble.value()
+            s.reply_max_length = self.ai_max_bubble.value()
         if hasattr(self, "ai_max_memory"):
             s.max_memory_turns = self.ai_max_memory.value()
         if hasattr(self, "ai_auto_screenshot"):

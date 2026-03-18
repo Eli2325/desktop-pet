@@ -37,7 +37,8 @@ class _AIWatchWorker(QThread):
             if not (s.api_key or "").strip():
                 self.error.emit("未连接：请在设置→AI 填写 Key")
                 return
-            max_tok = s.max_bubble_length * 3 if s.max_bubble_length > 0 else None
+            reply_max = int(getattr(s, "reply_max_length", 0) or 0)
+            max_tok = reply_max * 4 if reply_max > 0 else None
             sys_prompt = None
             if self._system_extra:
                 base = s.system_prompt or ""
@@ -934,6 +935,12 @@ class DesktopPet(QMainWindow):
     def _ai_watch_tick(self):
         if not self.ai_watch_enabled or self._ai_watch_busy:
             return
+        # 控制台正在等待AI回复时，跳过本次巡视，避免两个请求并发
+        try:
+            if self._chat_console and getattr(self._chat_console, "_sending", False):
+                return
+        except Exception:
+            pass
         self._ai_watch_busy = True
 
         try:
@@ -945,7 +952,12 @@ class DesktopPet(QMainWindow):
             s = None
             history = None
 
+        # reasoner模型（R1等）不支持视觉，强制跳过截图
+        from ai_openai_client import _is_reasoner_model
+        is_reasoner = _is_reasoner_model(getattr(s, "model", "") if s else "")
         vision = bool(getattr(s, "supports_vision", True)) if s else True
+        if is_reasoner:
+            vision = False
 
         img = None
         if vision:

@@ -105,7 +105,8 @@ class AISettings:
         "你是一只傲娇、黏人但很聪明的桌面宠物。\n"
         "请根据主人的消息（或屏幕截图）给出符合人设的简短回复。"
     )
-    max_bubble_length: int = 60
+    reply_min_length: int = 20
+    reply_max_length: int = 80
     auto_screenshot_interval_min: int = 0
     max_memory_turns: int = 5
     max_blackbox_logs: int = 150
@@ -154,7 +155,9 @@ def load_ai_settings() -> AISettings:
     s.api_key = str(openai_obj.get("api_key", "") or "")
     s.model = str(openai_obj.get("model", defaults.model) or defaults.model)
     s.system_prompt = str(openai_obj.get("system_prompt", defaults.system_prompt) or defaults.system_prompt)
-    s.max_bubble_length = int(openai_obj.get("max_bubble_length", defaults.max_bubble_length) or defaults.max_bubble_length)
+    s.max_bubble_length = 0  # 已废弃，保留兼容旧配置
+    s.reply_min_length = int(openai_obj.get("reply_min_length", openai_obj.get("max_bubble_length", defaults.reply_min_length)) or defaults.reply_min_length)
+    s.reply_max_length = int(openai_obj.get("reply_max_length", defaults.reply_max_length) or defaults.reply_max_length)
     s.auto_screenshot_interval_min = int(openai_obj.get("auto_screenshot_interval_min", 0) or 0)
     s.max_memory_turns = int(openai_obj.get("max_memory_turns", defaults.max_memory_turns) or defaults.max_memory_turns)
     s.max_blackbox_logs = int(openai_obj.get("max_blackbox_logs", defaults.max_blackbox_logs) or defaults.max_blackbox_logs)
@@ -176,7 +179,8 @@ def save_ai_settings(settings: AISettings) -> None:
         "api_key": settings.api_key,
         "model": settings.model,
         "system_prompt": settings.system_prompt,
-        "max_bubble_length": settings.max_bubble_length,
+        "reply_min_length": settings.reply_min_length,
+        "reply_max_length": settings.reply_max_length,
         "auto_screenshot_interval_min": settings.auto_screenshot_interval_min,
         "max_memory_turns": settings.max_memory_turns,
         "max_blackbox_logs": settings.max_blackbox_logs,

@@ -57,12 +57,27 @@ def _build_messages(
     history: Optional[List[Dict[str, str]]] = None,
     *,
     skip_system: bool = False,
+    reply_min_length: int = 0,
+    reply_max_length: int = 0,
 ) -> list:
     messages: list = []
+    # 自动拼字数要求到 system prompt
+    length_hint = ""
+    if reply_min_length > 0 and reply_max_length > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复控制在 {reply_min_length}~{reply_max_length} 字之间。"
+    elif reply_max_length > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复控制在 {reply_max_length} 字以内。"
+    elif reply_min_length > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复至少回复 {reply_min_length} 字。"
+
     if system_prompt and not skip_system:
-        messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "system", "content": system_prompt + length_hint})
     elif system_prompt and skip_system:
-        user_text = f"[人设提示] {system_prompt}\n\n{user_text}"
+        user_text = f"[人设提示] {system_prompt}{length_hint}\n\n{user_text}"
+    elif length_hint and not skip_system:
+        messages.append({"role": "system", "content": length_hint.strip()})
+    elif length_hint and skip_system:
+        user_text = f"{length_hint.strip()}\n\n{user_text}"
     if history:
         messages.extend(history)
     if image_b64_png:
@@ -101,15 +116,22 @@ def chat_completion(
 
     prompt = system_prompt if system_prompt is not None else (settings.system_prompt or None)
     reasoner = _is_reasoner_model(settings.model)
+    reply_min = int(getattr(settings, "reply_min_length", 0) or 0)
+    reply_max = int(getattr(settings, "reply_max_length", 0) or 0)
     url = f"{base_url}/chat/completions"
     payload: Dict[str, Any] = {
         "model": settings.model or "gpt-4o-mini",
-        "messages": _build_messages(prompt, user_text, image_b64, history, skip_system=reasoner),
+        "messages": _build_messages(prompt, user_text, image_b64, history, skip_system=reasoner,
+                                     reply_min_length=reply_min, reply_max_length=reply_max),
     }
     if not reasoner:
         payload["temperature"] = 0.7
-    if max_tokens and max_tokens > 0:
-        payload["max_tokens"] = max_tokens
+    # max_tokens 按回复上限的3倍计算（中文约1.5token/字），未设置则不限制
+    effective_max_tokens = max_tokens
+    if not effective_max_tokens and reply_max > 0:
+        effective_max_tokens = reply_max * 4
+    if effective_max_tokens and effective_max_tokens > 0:
+        payload["max_tokens"] = effective_max_tokens
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",

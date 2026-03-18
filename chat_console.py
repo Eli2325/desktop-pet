@@ -755,12 +755,7 @@ class ChatConsole(QDialog):
     def _on_ai_done(self, response_text: str, tokens: int, kind: str):
         self._set_pet_thinking(False)
         settings = load_ai_settings()
-        max_len = settings.max_bubble_length
         bubble_text = response_text
-        # 气泡显示上限 = 用户设定字数 + 20 缓冲，避免模型略微超出时被硬截断
-        bubble_limit = max_len + 20 if max_len > 0 else 0
-        if bubble_limit > 0 and len(bubble_text) > bubble_limit:
-            bubble_text = bubble_text[:bubble_limit] + "…"
 
         extra = {"source": "console"}
         if self._pending_update_log_id:
