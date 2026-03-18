@@ -1,0 +1,634 @@
+import React, { useState } from 'react';
+import { Settings, Activity, Sliders, AppWindow, MessageCircle, ShieldAlert, BrainCircuit, Save, X, Eye, EyeOff, Sparkles, SlidersHorizontal, Info, AlertTriangle, Link as LinkIcon, RefreshCw, CheckCircle2, Zap, ArrowRight, Loader2, Server, Plus, Trash2, FolderOpen, Play, Moon, Coffee, Maximize2, LayoutGrid, Type, Globe, Ban } from 'lucide-react';
+
+// --- 预设数据 (UI 视觉用) ---
+const PROVIDER_CONFIGS = {
+  gemini: { name: 'Google Gemini', defaultUrl: 'https://generativelanguage.googleapis.com/v1beta', defaultModel: 'gemini-1.5-pro' },
+  openai: { name: 'OpenAI', defaultUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o' },
+  anthropic: { name: 'Anthropic Claude', defaultUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-3-5-sonnet-latest' },
+  deepseek: { name: 'DeepSeek (深度求索)', defaultUrl: 'https://api.deepseek.com/v1', defaultModel: 'deepseek-chat' },
+  qwen: { name: 'Qwen (通义千问)', defaultUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-vl-plus' },
+  custom: { name: '自定义/第三方代理', defaultUrl: 'https://api.your-proxy.com/v1', defaultModel: '' }
+};
+
+const CATEGORIES = ["chat", "video", "ai", "code", "office", "browse", "gamehub", "music"];
+const CATEGORY_NAMES = {
+  chat: '聊天通讯', video: '视频影音', ai: 'AI工具', code: '代码开发', 
+  office: '办公文档', browse: '网页浏览', gamehub: '游戏娱乐', music: '音乐电台'
+};
+
+const isLikelyTextOnly = (modelName) => {
+  const name = modelName.toLowerCase();
+  const textOnlyPatterns = ['3.5-turbo', 'gpt-3', 'deepseek-chat', 'deepseek-coder', 'claude-2', 'claude-instant', 'llama-3-8b'];
+  const visionPatterns = ['vision', 'vl', '4o', 'pro', 'sonnet', 'opus', 'gemini'];
+  if (visionPatterns.some(p => name.includes(p))) return false;
+  if (textOnlyPatterns.some(p => name.includes(p))) return true;
+  return false;
+};
+
+// --- iOS 风格拨动开关组件 ---
+const ToggleSwitch = ({ checked, onChange }) => (
+  <button 
+    onClick={() => onChange(!checked)}
+    className={`w-11 h-6 rounded-full relative transition-colors duration-300 focus:outline-none ${checked ? 'bg-blue-500' : 'bg-slate-200'}`}
+  >
+    <span className={`absolute top-0.5 left-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-300 shadow-sm ${checked ? 'transform translate-x-5' : ''}`} />
+  </button>
+);
+
+const SettingsUI = () => {
+  // 对应 Python 文件的 6 个 Tab + 1 个 AI Tab
+  const [activeTab, setActiveTab] = useState('basic');
+
+  // --- 状态 Mock ---
+  // 1. Basic
+  const [basic, setBasic] = useState({ enabled: true, switchOnly: true, quiet: false, petSize: 192 });
+  // 2. Behavior (Pet Settings)
+  const [behavior, setBehavior] = useState({
+    speed: 1.5, aiInterval: 2000, autoWalk: true, roamRadius: 0, edgeMargin: 0, autoFall: true,
+    sleepEnabled: true, idleMin: 20, adrMin: 10,
+    waterEnabled: true, waterInt: 60, moveEnabled: true, moveInt: 90,
+    startH: 9, startM: 0, endH: 23, endM: 30, noticeMs: 3000, idleChatInt: 10
+  });
+  // 3. Rules
+  const [rules, setRules] = useState({ prob: 0.35, showMs: 2600, frontStable: 500, maxPending: 1 });
+  // 4. Mapping & 5. Text & 6. Filters (只做视觉占位，不写复杂交互)
+  
+  // 7. AI
+  const [aiConfig, setAiConfig] = useState({
+    provider: 'gemini', apiUrl: PROVIDER_CONFIGS['gemini'].defaultUrl, apiKey: '', model: PROVIDER_CONFIGS['gemini'].defaultModel,
+    systemPrompt: '你是一只傲娇、黏人但很聪明的桌面宠物。你现在可以透过屏幕看到主人在干什么。\n请根据主人的屏幕内容和聊天上下文，给出符合人设的吐槽或关心。',
+    maxBubbleLength: 30, autoScreenshotInterval: 10, maxMemoryTurns: 5
+  });
+
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showModelModal, setShowModelModal] = useState(false);
+  const [modalStatus, setModalStatus] = useState('idle');
+  const [fetchedModels, setFetchedModels] = useState([]);
+
+  // ==================== 修复的缺失函数 ====================
+  
+  // 切换服务商的联动逻辑
+  const handleProviderChange = (newProvider) => {
+    const config = PROVIDER_CONFIGS[newProvider];
+    setAiConfig(prev => ({
+      ...prev,
+      provider: newProvider,
+      apiUrl: config.defaultUrl,
+      model: config.defaultModel
+    }));
+  };
+
+  // 在线拉取模型的 Mock 逻辑
+  const openModelFetcher = () => {
+    setShowModelModal(true);
+    setModalStatus('loading');
+    setFetchedModels([]);
+
+    setTimeout(() => {
+      if (!aiConfig.apiKey.trim() && aiConfig.provider !== 'custom') {
+        setModalStatus('error');
+        setFetchedModels([
+          { id: PROVIDER_CONFIGS[aiConfig.provider].defaultModel, desc: '默认模型' }
+        ]);
+        return;
+      }
+
+      const mockLiveModels = {
+        gemini: [
+          { id: 'gemini-1.5-pro-latest', desc: '最新旗舰模型，适合复杂视觉推理' },
+          { id: 'gemini-1.5-flash-latest', desc: '极速响应，适合高频日常陪伴' },
+          { id: 'gemini-2.0-flash-exp', desc: '实验性前沿模型' }
+        ],
+        openai: [
+          { id: 'gpt-4o', desc: '全能旗舰，顶尖的多模态能力' },
+          { id: 'gpt-4o-mini', desc: '高性价比，适合日常高频对话' },
+          { id: 'o1-preview', desc: '深度推理视觉模型' }
+        ],
+        anthropic: [
+          { id: 'claude-3-5-sonnet-latest', desc: '响应极快，非常聪明的日常陪伴' },
+          { id: 'claude-3-opus-20240229', desc: '极其细腻的人格化表达' }
+        ],
+        deepseek: [
+          { id: 'deepseek-chat', desc: 'V3 核心模型 (纯文本)' },
+          { id: 'deepseek-coder', desc: '代码增强模型 (纯文本)' }
+        ],
+        qwen: [
+          { id: 'qwen-vl-plus', desc: '通义千问进阶视觉模型' },
+          { id: 'qwen-vl-max', desc: '通义千问旗舰视觉模型' }
+        ],
+        custom: [
+          { id: 'proxy-vision-model', desc: '支持识图的自定义模型' },
+          { id: 'gpt-4o', desc: '兼容的 OpenAI 视觉模型名' }
+        ]
+      };
+
+      setFetchedModels(mockLiveModels[aiConfig.provider] || mockLiveModels.custom);
+      setModalStatus('success');
+    }, 1200);
+  };
+
+  // --- 导航菜单 ---
+  const menuItems = [
+    { id: 'basic', icon: Settings, label: '基础', desc: '气泡总控、安静模式、路径' },
+    { id: 'behavior', icon: Activity, label: '行为', desc: '移动睡眠、生活提醒参数' },
+    { id: 'rules', icon: Sliders, label: '规则', desc: '冷却时间、自定义类别' },
+    { id: 'mapping', icon: AppWindow, label: '应用映射', desc: '抓取绑定、分类网站' },
+    { id: 'text', icon: MessageCircle, label: '文案池', desc: '待机、专属、通用语录' },
+    { id: 'filters', icon: ShieldAlert, label: '过滤器', desc: '黑名单、忽略进程' },
+    { id: 'ai', icon: BrainCircuit, label: '🧠 AI 外置大脑', desc: '大模型、视觉配置' },
+  ];
+
+  // ==================== 1. 基础 (Basic) ====================
+  const renderBasicTab = () => (
+    <div className="space-y-6 max-w-2xl pb-4 animate-fade-in">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <div>
+            <p className="text-sm font-bold text-slate-800">启用活动气泡</p>
+            <p className="text-xs text-slate-500 mt-1">关闭后桌宠不再根据前台应用弹出活动气泡</p>
+          </div>
+          <ToggleSwitch checked={basic.enabled} onChange={(v) => setBasic({...basic, enabled: v})} />
+        </div>
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <div>
+            <p className="text-sm font-bold text-slate-800">仅在切换前台应用时触发</p>
+            <p className="text-xs text-slate-500 mt-1">同一应用内不会反复提醒</p>
+          </div>
+          <ToggleSwitch checked={basic.switchOnly} onChange={(v) => setBasic({...basic, switchOnly: v})} />
+        </div>
+        <div className="flex items-center justify-between p-5 bg-orange-50/30">
+          <div>
+            <p className="text-sm font-bold text-slate-800">安静模式</p>
+            <p className="text-xs text-orange-500 mt-1 font-medium flex items-center">
+              <AlertTriangle size={12} className="mr-1"/> 不弹气泡不提醒，拖拽戳摸头仍可用
+            </p>
+          </div>
+          <ToggleSwitch checked={basic.quiet} onChange={(v) => setBasic({...basic, quiet: v})} />
+        </div>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center"><FolderOpen size={16} className="mr-2 text-blue-500"/> 帮助与路径</h3>
+        <div className="space-y-2">
+          <p className="text-xs text-slate-600 font-mono bg-white p-2 rounded border border-slate-200">C:\Users\YourName\DesktopPet\config</p>
+          <p className="text-xs text-slate-500">替换外观：在 exe 同目录的 assets 文件夹中，用同名 GIF 覆盖即可。</p>
+        </div>
+        <button className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold transition-colors border border-blue-200 shadow-sm">
+          打开配置目录
+        </button>
+      </div>
+    </div>
+  );
+
+  // ==================== 2. 行为 (Behavior) ====================
+  const renderBehaviorTab = () => (
+    <div className="space-y-6 max-w-2xl pb-4 animate-fade-in">
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center"><Play size={16} className="mr-2 text-indigo-500"/> 桌宠行为</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">移动速度 (0.2 - 10.0)</label><input type="number" value={behavior.speed} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">活跃度 (思考间隔 ms)</label><input type="number" value={behavior.aiInterval} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">游走范围 (0=不限)</label><input type="number" value={behavior.roamRadius} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">边缘安全距离</label><input type="number" value={behavior.edgeMargin} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+        </div>
+        <div className="flex space-x-6 pt-2">
+          <label className="flex items-center space-x-2 text-sm text-slate-700"><input type="checkbox" checked={behavior.autoWalk} readOnly className="accent-blue-500 w-4 h-4"/><span>自动走动</span></label>
+          <label className="flex items-center space-x-2 text-sm text-slate-700"><input type="checkbox" checked={behavior.autoFall} readOnly className="accent-blue-500 w-4 h-4"/><span>自动掉落</span></label>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center"><Moon size={16} className="mr-2 text-purple-500"/> 睡眠机制</h3>
+          <ToggleSwitch checked={behavior.sleepEnabled} onChange={() => {}} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">发呆多久进入睡眠 (分)</label><input type="number" value={behavior.idleMin} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">启动免睡期 (分)</label><input type="number" value={behavior.adrMin} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+        </div>
+        <div className="flex space-x-3 pt-2">
+          <button className="px-4 py-1.5 bg-purple-50 text-purple-600 rounded text-xs font-bold border border-purple-200 hover:bg-purple-100">强制睡觉</button>
+          <button className="px-4 py-1.5 bg-orange-50 text-orange-600 rounded text-xs font-bold border border-orange-200 hover:bg-orange-100">强制醒来</button>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center"><Coffee size={16} className="mr-2 text-teal-500"/> 生活提醒</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2"><input type="checkbox" checked readOnly className="accent-blue-500 w-4 h-4"/><span className="text-sm">喝水提醒 (每 60 分)</span></div>
+          <div className="flex items-center space-x-2"><input type="checkbox" checked readOnly className="accent-blue-500 w-4 h-4"/><span className="text-sm">动一动提醒 (每 90 分)</span></div>
+          <div className="col-span-2 flex items-center space-x-2 bg-slate-50 p-2 rounded border border-slate-100">
+            <span className="text-xs text-slate-600">生效时段:</span>
+            <input type="number" value="9" className="w-12 border rounded text-center text-xs p-1" readOnly/><span>:</span><input type="number" value="0" className="w-12 border rounded text-center text-xs p-1" readOnly/>
+            <span className="text-xs text-slate-400 px-2">到</span>
+            <input type="number" value="23" className="w-12 border rounded text-center text-xs p-1" readOnly/><span>:</span><input type="number" value="30" className="w-12 border rounded text-center text-xs p-1" readOnly/>
+          </div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">提示停留 (毫秒)</label><input type="number" value="3000" className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">待机闲聊间隔 (分)</label><input type="number" value="10" className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+        </div>
+      </section>
+    </div>
+  );
+
+  // ==================== 3. 规则 (Rules) ====================
+  const renderRulesTab = () => (
+    <div className="space-y-6 max-w-2xl pb-4 animate-fade-in">
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-800">全局参数</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">触发概率</label><input type="number" value={rules.prob} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">显示时长 (ms)</label><input type="number" value={rules.showMs} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">前台稳定阈值 (ms)</label><input type="number" value={rules.frontStable} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">最大待定数</label><input type="number" value={rules.maxPending} className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-bold text-slate-800">各类别冷却时间 (秒)</h3>
+        <div className="grid grid-cols-2 gap-3">
+          {CATEGORIES.map(cat => (
+            <div key={cat} className="flex justify-between items-center bg-slate-50 p-2.5 rounded border border-slate-100">
+              <span className="text-xs font-semibold text-slate-700">{CATEGORY_NAMES[cat] || cat}</span>
+              <input type="number" value="600" className="w-16 border rounded text-xs p-1 text-center font-mono" readOnly/>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <h3 className="text-sm font-bold text-slate-800">管理类别</h3>
+        <p className="text-[10px] text-slate-500">添加/删除/重命名类别，冷却时间会同步</p>
+        <div className="border border-slate-200 rounded overflow-hidden">
+          <div className="p-2 border-b border-slate-100 text-sm text-slate-600 bg-slate-50">chat</div>
+          <div className="p-2 border-b border-slate-100 text-sm text-slate-600">video</div>
+          <div className="p-2 border-b border-slate-100 text-sm text-slate-600">... (共8个)</div>
+        </div>
+        <div className="flex space-x-2 pt-2">
+          <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-bold">+ 添加类别</button>
+          <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-bold">✏️ 重命名</button>
+          <button className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded text-xs font-bold">- 删除类别</button>
+        </div>
+      </section>
+    </div>
+  );
+
+  // ==================== 4. 应用映射 (Mapping) ====================
+  const renderMappingTab = () => (
+    <div className="flex h-[450px] space-x-4 animate-fade-in">
+      <div className="w-1/2 flex flex-col space-y-3 border-r border-slate-200 pr-4">
+        <div className="flex space-x-2">
+          <button className="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-bold flex justify-center items-center shadow-sm">
+            <RefreshCw size={14} className="mr-1"/>自动抓取应用
+          </button>
+          <button className="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex justify-center items-center shadow-sm">
+            <Plus size={14} className="mr-1"/>添加网站
+          </button>
+        </div>
+        <p className="text-[10px] text-slate-400">应用映射 App Mappings:</p>
+        <div className="flex-1 border border-slate-200 rounded-lg overflow-y-auto bg-white p-1">
+          <div className="p-2 hover:bg-slate-50 cursor-pointer rounded text-xs text-blue-600 font-bold bg-blue-50 border border-blue-100">[chat] Weixin exe~WeChat.exe</div>
+          <div className="p-2 hover:bg-slate-50 cursor-pointer rounded text-xs text-slate-600 border border-transparent">[code] VSCode exe~Code.exe</div>
+          <div className="p-2 hover:bg-slate-50 cursor-pointer rounded text-xs text-slate-600 border border-transparent">[game] Steam exe~steam.exe</div>
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2">网站规则 Site Rules:</p>
+        <div className="h-1/3 border border-slate-200 rounded-lg overflow-y-auto bg-white p-1">
+          <div className="p-2 hover:bg-slate-50 cursor-pointer rounded text-xs text-slate-600">[site·video] YouTube kw~youtube</div>
+          <div className="p-2 hover:bg-slate-50 cursor-pointer rounded text-xs text-slate-600">[site·ai] ChatGPT kw~chatgpt</div>
+        </div>
+      </div>
+      
+      <div className="w-1/2 flex flex-col space-y-4">
+        <h3 className="text-sm font-bold text-slate-800">编辑映射</h3>
+        <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm space-y-3">
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">进程名包含</label><input type="text" value="WeChat.exe" className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">类别</label><select className="w-full bg-slate-50 border rounded p-2 text-sm" disabled><option>chat</option></select></div>
+          <div className="space-y-1.5"><label className="text-xs text-slate-600">显示名称</label><input type="text" value="Weixin" className="w-full bg-slate-50 border rounded p-2 text-sm" readOnly/></div>
+          <div className="pt-2 space-y-2">
+            <button className="w-full py-2 bg-blue-50 text-blue-600 font-bold text-sm rounded border border-blue-200">保存应用映射</button>
+            <button className="w-full py-2 bg-slate-50 text-slate-600 font-bold text-sm rounded border border-slate-200">删除应用映射</button>
+            <button className="w-full py-2 bg-red-50 text-red-600 font-bold text-sm rounded border border-red-200">🚫 屏蔽该应用</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ==================== 5. 文案池 (Text) ====================
+  const renderTextTab = () => (
+    <div className="space-y-6 max-w-2xl pb-4 animate-fade-in">
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-blue-500">待机闲聊</h3>
+          <div className="flex space-x-2">
+            <button className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold">+ 添加闲聊</button>
+            <button className="px-2 py-1 bg-red-50 text-red-500 rounded text-[10px] font-bold">- 删除</button>
+          </div>
+        </div>
+        <div className="border border-slate-200 rounded h-24 overflow-y-auto bg-slate-50 p-2 text-xs text-slate-600 space-y-1">
+          <div className="p-1">今天天气真不错呀~</div>
+          <div className="p-1">想吃好吃的了...</div>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-slate-800">应用专属文案</h3>
+          <div className="flex space-x-2">
+            <button className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold">+ 添加专属文案</button>
+            <button className="px-2 py-1 bg-red-50 text-red-500 rounded text-[10px] font-bold">- 删除</button>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-slate-600">选择对象：</span>
+          <select className="flex-1 bg-slate-50 border rounded p-1.5 text-xs"><option>[应用·chat] Weixin</option></select>
+        </div>
+        <div className="border border-slate-200 rounded h-24 overflow-y-auto bg-slate-50 p-2 text-xs text-slate-600 space-y-1">
+          <div className="p-1">又在和谁聊天呢？</div>
+        </div>
+        <label className="flex items-center space-x-2 text-xs text-blue-600 font-bold"><input type="checkbox" checked readOnly className="accent-blue-500"/><span>也使用类别通用文案（混合）</span></label>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-bold text-slate-800">类别通用文案</h3>
+          <div className="flex space-x-2">
+            <button className="px-2 py-1 bg-slate-100 rounded text-[10px] font-bold">新增 Add</button>
+            <button className="px-2 py-1 bg-red-50 text-red-500 rounded text-[10px] font-bold">删除 Delete</button>
+            <button className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">恢复预设文案</button>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-xs text-slate-600">类别：</span>
+          <select className="flex-1 bg-slate-50 border rounded p-1.5 text-xs"><option>chat</option></select>
+        </div>
+        <div className="border border-slate-200 rounded h-24 overflow-y-auto bg-slate-50 p-2 text-xs text-slate-600 space-y-1">
+          <div className="p-1">要找人说话吗。(来自预设)</div>
+          <div className="p-1">聊完记得回来。(来自预设)</div>
+        </div>
+      </section>
+    </div>
+  );
+
+  // ==================== 6. 过滤器 (Filters) ====================
+  const renderFiltersTab = () => (
+    <div className="space-y-6 max-w-2xl pb-4 animate-fade-in">
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <h3 className="text-sm font-bold text-slate-800">屏蔽进程列表</h3>
+        <p className="text-[10px] text-slate-500">列表中的进程不会触发活动气泡，也不会被自动抓取</p>
+        <div className="border border-slate-200 rounded h-32 overflow-y-auto bg-slate-50 p-2 text-xs text-slate-600 space-y-1">
+          <div className="p-1">taskmgr.exe</div>
+        </div>
+        <div className="flex space-x-2">
+          <button className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded text-xs font-bold border border-blue-200">添加</button>
+          <button className="px-4 py-1.5 bg-red-50 text-red-500 rounded text-xs font-bold border border-red-200">删除</button>
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3">
+        <h3 className="text-sm font-bold text-slate-800">屏蔽标题关键词</h3>
+        <p className="text-[10px] text-slate-500">窗口标题包含这些关键词时不会触发气泡</p>
+        <div className="border border-slate-200 rounded h-32 overflow-y-auto bg-slate-50 p-2 text-xs text-slate-600 space-y-1">
+          <div className="p-1">Desktop Pet Settings</div>
+        </div>
+        <div className="flex space-x-2">
+          <button className="px-4 py-1.5 bg-blue-50 text-blue-600 rounded text-xs font-bold border border-blue-200">添加</button>
+          <button className="px-4 py-1.5 bg-red-50 text-red-500 rounded text-xs font-bold border border-red-200">删除</button>
+        </div>
+      </section>
+    </div>
+  );
+
+  // ==================== 7. AI 外置大脑 (AI) ====================
+  const renderAITab = () => {
+    const showTextOnlyWarning = isLikelyTextOnly(aiConfig.model);
+    const isCustomUrl = aiConfig.apiUrl !== PROVIDER_CONFIGS[aiConfig.provider].defaultUrl;
+
+    return (
+      <div className="space-y-8 max-w-2xl pb-4 animate-fade-in">
+        <section>
+          <div className="flex items-center space-x-2 mb-4">
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">接口与模型配置</h3>
+            <div className="h-px flex-1 bg-slate-100"></div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">服务商 (Provider)</label>
+              <select value={aiConfig.provider} onChange={(e) => handleProviderChange(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium">
+                {Object.entries(PROVIDER_CONFIGS).map(([key, config]) => (<option key={key} value={key}>{config.name}</option>))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">API Key</label>
+              <div className="relative">
+                <input type={showApiKey ? "text" : "password"} value={aiConfig.apiKey} onChange={(e) => setAiConfig({...aiConfig, apiKey: e.target.value})} placeholder="sk-xxxxxxxx" className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 pr-10 text-sm text-slate-700 font-mono"/>
+                <button onClick={() => setShowApiKey(!showApiKey)} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"><EyeOff size={16} /></button>
+              </div>
+            </div>
+            
+            <div className="col-span-2 space-y-1.5">
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-semibold text-slate-600">接口代理地址 (Base URL)</label>
+                {isCustomUrl && (
+                  <span className="text-[10px] text-orange-500 font-medium flex items-center animate-fade-in">
+                    <AlertTriangle size={10} className="mr-1" />已启用第三方通道
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 text-slate-400"><LinkIcon size={16} /></div>
+                <input type="text" value={aiConfig.apiUrl} onChange={(e) => setAiConfig({...aiConfig, apiUrl: e.target.value})} className={`w-full bg-slate-50 border rounded-lg py-2.5 pl-9 pr-3 text-sm font-mono ${isCustomUrl ? 'border-orange-300 text-orange-700 focus:ring-orange-500/30' : 'border-slate-200 text-slate-700 focus:ring-blue-500/20'}`}/>
+              </div>
+            </div>
+
+            <div className="col-span-2 space-y-1.5 mt-2 relative">
+              <label className="text-xs font-semibold text-slate-600">视觉模型 (Model)</label>
+              <div className="flex space-x-2">
+                <input type="text" value={aiConfig.model} onChange={(e) => setAiConfig({...aiConfig, model: e.target.value})} className={`flex-1 bg-slate-50 border rounded-lg p-2.5 text-sm font-mono ${showTextOnlyWarning ? 'border-orange-400 focus:ring-orange-500/20' : 'border-slate-200 focus:ring-blue-500/20'}`}/>
+                <button onClick={openModelFetcher} className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 text-white rounded-lg text-sm font-medium shadow-sm flex items-center space-x-1.5 shrink-0 active:scale-95"><Zap size={16} /><span>获取实时模型</span></button>
+              </div>
+              {showTextOnlyWarning && (
+                <div className="mt-2 bg-orange-50 border border-orange-200 px-3 py-2 rounded-lg flex items-start space-x-2 animate-fade-in">
+                  <AlertTriangle size={14} className="text-orange-500 mt-0.5 shrink-0" />
+                  <p className="text-[10px] text-orange-700 font-medium">注意：当前模型似乎不支持视觉。开启屏幕截图抓取功能可能会导致报错。</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-5">
+           <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3">
+             <div className="flex justify-between items-center"><label className="text-sm font-semibold text-slate-700 flex items-center"><MessageSquare size={14} className="mr-1.5 text-blue-600" />气泡输出字数上限</label><span className="text-xs font-bold text-white bg-blue-500 px-2 py-1 rounded-md">{aiConfig.maxBubbleLength} 字</span></div>
+             <input type="range" min="10" max="150" step="5" value={aiConfig.maxBubbleLength} onChange={(e) => setAiConfig({...aiConfig, maxBubbleLength: parseInt(e.target.value)})} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"/>
+           </div>
+           <div className="space-y-1.5">
+             <label className="text-xs font-semibold text-slate-600">桌宠性格设定 (System Prompt)</label>
+             <textarea value={aiConfig.systemPrompt} onChange={(e) => setAiConfig({...aiConfig, systemPrompt: e.target.value})} rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700 resize-none"/>
+           </div>
+        </section>
+
+        <section className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-6">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center"><label className="text-sm font-medium text-slate-700">定时自动看屏幕频率</label><span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">{aiConfig.autoScreenshotInterval === 0 ? '已关闭' : `每 ${aiConfig.autoScreenshotInterval} 分钟`}</span></div>
+              <input type="range" min="0" max="120" step="1" value={aiConfig.autoScreenshotInterval} onChange={(e) => setAiConfig({...aiConfig, autoScreenshotInterval: parseInt(e.target.value)})} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"/>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center"><label className="text-sm font-medium text-slate-700">记住的历史对话轮数</label><span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">上下文 {aiConfig.maxMemoryTurns} 轮</span></div>
+              <input type="range" min="1" max="50" step="1" value={aiConfig.maxMemoryTurns} onChange={(e) => setAiConfig({...aiConfig, maxMemoryTurns: parseInt(e.target.value)})} className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"/>
+            </div>
+        </section>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'basic': return renderBasicTab();
+      case 'behavior': return renderBehaviorTab();
+      case 'rules': return renderRulesTab();
+      case 'mapping': return renderMappingTab();
+      case 'text': return renderTextTab();
+      case 'filters': return renderFiltersTab();
+      case 'ai': return renderAITab();
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-200 p-8 font-sans relative">
+      
+      {/* 模态弹窗 (Model Fetcher) */}
+      {showModelModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+          <div className="w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+            <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><Server size={16} /></div>
+                <div><h3 className="font-bold text-slate-800 text-sm">在线获取可用模型</h3></div>
+              </div>
+              <button onClick={() => setShowModelModal(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 min-h-[240px] max-h-[440px] overflow-y-auto scrollbar-thin">
+              {modalStatus === 'loading' && (
+                <div className="flex flex-col items-center justify-center h-48 space-y-4">
+                  <Loader2 size={32} className="text-blue-500 animate-spin" />
+                  <p className="text-sm text-slate-600 font-medium animate-pulse">正在穿梭网线探测支持视觉的模型...</p>
+                </div>
+              )}
+              {modalStatus === 'error' && (
+                <div className="flex flex-col items-center justify-center h-48 space-y-3 text-center">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                    <AlertTriangle size={24} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">在线拉取失败</p>
+                  <p className="text-xs text-slate-500 px-8">可能是因为您尚未填写有效的 API Key，或者网络连接存在问题。</p>
+                  <button onClick={() => setShowModelModal(false)} className="mt-4 px-6 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium">返回手动输入</button>
+                </div>
+              )}
+              {modalStatus === 'success' && (
+                <div className="space-y-3 animate-fade-in">
+                  <div className="flex items-center space-x-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-100 mb-2">
+                    <CheckCircle2 size={16} /> <span className="font-medium">探测成功！</span>
+                  </div>
+                  <div className="space-y-2">
+                    {fetchedModels.map((model, idx) => {
+                      const isTextOnly = isLikelyTextOnly(model.id);
+                      return (
+                      <div key={idx} className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${isTextOnly ? 'border-orange-200 bg-orange-50/20' : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'}`}>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <p className={`text-sm font-bold font-mono ${isTextOnly ? 'text-orange-800' : 'text-slate-800'}`}>{model.id}</p>
+                            {isTextOnly && <span className="text-[9px] font-bold bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded border border-orange-200">纯文本</span>}
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-0.5">{model.desc}</p>
+                        </div>
+                        <button onClick={() => { setAiConfig(prev => ({ ...prev, model: model.id })); setShowModelModal(false); }} className={`opacity-0 group-hover:opacity-100 px-3 py-1.5 text-white rounded-lg text-xs font-medium transition-all ${isTextOnly ? 'bg-orange-500 hover:bg-orange-600' : 'bg-blue-500 hover:bg-blue-600'}`}>应用</button>
+                      </div>
+                    )})}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 主设置窗口 */}
+      <div className="w-[960px] h-[700px] bg-white rounded-2xl shadow-2xl flex overflow-hidden border border-slate-200">
+        
+        {/* 左侧导航栏 */}
+        <div className="w-[280px] bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 z-10">
+          <div className="p-6 border-b border-slate-200 flex items-center space-x-3 bg-white">
+            <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h2 className="font-extrabold text-slate-800 text-lg tracking-tight">控制面板</h2>
+              <p className="text-[10px] text-slate-500 font-medium tracking-wider uppercase mt-0.5">Desktop Pet v2.0</p>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 scrollbar-none">
+            {menuItems.map(item => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              const isAi = item.id === 'ai';
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center space-x-3 px-3 py-3.5 rounded-xl transition-all duration-300 ${
+                    isActive && !isAi ? 'bg-white shadow-md border border-slate-200 text-blue-600 transform scale-[1.02]' 
+                    : isActive && isAi ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-md border border-indigo-400 text-white transform scale-[1.02]'
+                    : isAi ? 'bg-indigo-50/50 text-indigo-600 hover:bg-indigo-100/50 border border-indigo-100/50'
+                    : 'text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 border border-transparent'
+                  }`}
+                >
+                  <Icon size={18} className={`${isActive && !isAi ? 'text-blue-500' : isActive && isAi ? 'text-white' : isAi ? 'text-indigo-500' : 'text-slate-400'} shrink-0`} />
+                  <div className="text-left flex-1 min-w-0">
+                    <div className={`text-sm font-bold truncate ${isActive && !isAi ? 'text-slate-800' : isActive && isAi ? 'text-white' : ''}`}>{item.label}</div>
+                    <div className={`text-[10px] mt-0.5 truncate ${isActive && isAi ? 'text-indigo-100' : isAi ? 'text-indigo-400' : 'text-slate-400'}`}>{item.desc}</div>
+                  </div>
+                  {isActive && !isAi && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />}
+                  {isActive && isAi && <div className="w-1.5 h-1.5 rounded-full bg-white shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 右侧内容区 */}
+        <div className="flex-1 flex flex-col bg-slate-50 relative overflow-hidden">
+          <div className="h-20 px-8 flex items-center border-b border-slate-200 shrink-0 bg-white/80 backdrop-blur-md z-10 sticky top-0">
+            <div className="flex flex-col">
+              <h1 className="text-xl font-extrabold text-slate-800 flex items-center space-x-2">
+                {React.createElement(menuItems.find(m => m.id === activeTab).icon, { className: activeTab === 'ai' ? "text-indigo-500" : "text-blue-500", size: 24 })}
+                <span>{menuItems.find(m => m.id === activeTab).label}</span>
+              </h1>
+              <p className="text-xs text-slate-500 mt-1 font-medium">{menuItems.find(m => m.id === activeTab).desc}</p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 scrollbar-thin bg-slate-50/50">
+            {renderContent()}
+          </div>
+
+          <div className="h-16 border-t border-slate-200 bg-white flex items-center justify-end px-6 space-x-3 shrink-0 z-10">
+            <button className="px-6 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100 transition-colors">
+              关闭
+            </button>
+            <button className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20 flex items-center space-x-1.5 active:scale-95">
+              <Save size={16} />
+              <span>保存并应用</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SettingsUI;
