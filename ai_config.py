@@ -22,7 +22,6 @@ def get_chat_memory_path() -> str:
 PROVIDER_PRESETS: List[Dict[str, str]] = [
     {"name": "OpenAI",              "base_url": "https://api.openai.com/v1",                                "default_model": "gpt-4o-mini"},
     {"name": "Anthropic (原生)",    "base_url": "https://api.anthropic.com",                                "default_model": "claude-sonnet-4-20250514"},
-    {"name": "Claude (OpenRouter)", "base_url": "https://openrouter.ai/api/v1",                             "default_model": "anthropic/claude-sonnet-4-20250514"},
     {"name": "Google Gemini",       "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",   "default_model": "gemini-2.0-flash"},
     {"name": "DeepSeek",            "base_url": "https://api.deepseek.com",                                 "default_model": "deepseek-chat"},
     {"name": "通义千问 (Qwen)",       "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",       "default_model": "qwen-turbo"},
