@@ -2071,6 +2071,18 @@ class DesktopPet(QMainWindow):
                 self._chat_console.cb_app_bubbles.setChecked(self.activity_bubbles_enabled)
         except Exception:
             pass
+        # sync settings dialog checkboxes (basic + AI mirror) in real-time
+        try:
+            dlg = getattr(self, "_settings_dialog", None)
+            if dlg is not None:
+                for name in ("cb_enabled", "cb_app_bubbles_ai"):
+                    if hasattr(dlg, name):
+                        w = getattr(dlg, name)
+                        w.blockSignals(True)
+                        w.setChecked(self.activity_bubbles_enabled)
+                        w.blockSignals(False)
+        except Exception:
+            pass
         if not self.activity_bubbles_enabled:
             self.activity_pending = None
             self.activity_bubble.hide()
@@ -2083,6 +2095,18 @@ class DesktopPet(QMainWindow):
                     self.act_activity.setChecked(self.activity_bubbles_enabled)
                 except Exception:
                     pass
+            # sync settings dialog checkboxes (basic + AI mirror) in real-time
+            try:
+                dlg = getattr(self, "_settings_dialog", None)
+                if dlg is not None:
+                    for name in ("cb_enabled", "cb_app_bubbles_ai"):
+                        if hasattr(dlg, name):
+                            w = getattr(dlg, name)
+                            w.blockSignals(True)
+                            w.setChecked(self.activity_bubbles_enabled)
+                            w.blockSignals(False)
+            except Exception:
+                pass
             if not self.activity_bubbles_enabled:
                 self.activity_pending = None
                 self.activity_bubble.hide()
