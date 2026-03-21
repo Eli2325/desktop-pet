@@ -1050,11 +1050,11 @@ class SettingsDialog(QDialog):
             if hasattr(self, "ai_system_prompt"):
                 self.ai_system_prompt.setPlainText(s.system_prompt or "")
             if hasattr(self, "ai_min_reply"):
-                self.ai_min_reply.setValue(int(getattr(s, "reply_min_length", 20) or 20))
+                self.ai_min_reply.setValue(int(getattr(s, "reply_min_length", 20)))
             if hasattr(self, "ai_max_bubble"):
-                self.ai_max_bubble.setValue(int(getattr(s, "reply_max_length", 80) or 80))
+                self.ai_max_bubble.setValue(int(getattr(s, "reply_max_length", 80)))
             if hasattr(self, "ai_max_memory"):
-                self.ai_max_memory.setValue(int(s.max_memory_turns or 5))
+                self.ai_max_memory.setValue(int(getattr(s, "max_memory_turns", 5)))
             if hasattr(self, "ai_auto_screenshot"):
                 self.ai_auto_screenshot.setValue(int(s.auto_screenshot_interval_min or 0))
             if hasattr(self, "ai_blackbox_keep"):
