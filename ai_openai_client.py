@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from ai_config import AISettings, is_domestic_api
+from ai_config import AISettings, is_domestic_api, is_anthropic_native
 
 
 @dataclass
@@ -105,6 +105,15 @@ def chat_completion(
     max_tokens: Optional[int] = None,
     timeout_s: int = 30,
 ) -> AIReply:
+    if is_anthropic_native(settings.base_url):
+        return _chat_completion_anthropic(
+            settings, user_text,
+            image_png_bytes=image_png_bytes,
+            system_prompt=system_prompt,
+            history=history,
+            max_tokens=max_tokens,
+            timeout_s=timeout_s,
+        )
     base_url = _normalize_base_url(settings.base_url)
     api_key = (settings.api_key or "").strip()
     if not api_key:
@@ -183,7 +192,149 @@ def chat_completion(
     return AIReply(text=text or "", tokens=tokens, raw=data if isinstance(data, dict) else None)
 
 
+# ── Anthropic native Messages API ──
+
+_ANTHROPIC_MODELS = [
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-20241022",
+    "claude-3-5-haiku-20241022",
+    "claude-3-opus-20240229",
+    "claude-3-haiku-20240307",
+]
+
+
+def _build_anthropic_messages(
+    user_text: str,
+    image_b64_png: Optional[str],
+    history: Optional[List[Dict[str, str]]] = None,
+) -> list:
+    messages: list = []
+    if history:
+        messages.extend(history)
+    if image_b64_png:
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text or "请根据这张截图给出反馈。"},
+                {"type": "image", "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": image_b64_png,
+                }},
+            ],
+        })
+    else:
+        messages.append({"role": "user", "content": user_text})
+    return messages
+
+
+def _chat_completion_anthropic(
+    settings: AISettings,
+    user_text: str,
+    *,
+    image_png_bytes: Optional[bytes] = None,
+    system_prompt: Optional[str] = None,
+    history: Optional[List[Dict[str, str]]] = None,
+    max_tokens: Optional[int] = None,
+    timeout_s: int = 30,
+) -> AIReply:
+    base_url = (settings.base_url or "").strip().rstrip("/") or "https://api.anthropic.com"
+    api_key = (settings.api_key or "").strip()
+    if not api_key:
+        raise RuntimeError("API Key 为空，请先在设置面板填写 API Key。")
+
+    image_b64 = None
+    if image_png_bytes:
+        image_b64 = base64.b64encode(image_png_bytes).decode("ascii")
+
+    prompt = system_prompt if system_prompt is not None else (settings.system_prompt or None)
+    reply_min = int(getattr(settings, "reply_min_length", 0) or 0)
+    reply_max = int(getattr(settings, "reply_max_length", 0) or 0)
+
+    length_hint = ""
+    if reply_min > 0 and reply_max > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复控制在 {reply_min}~{reply_max} 字之间。"
+    elif reply_max > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复控制在 {reply_max} 字以内。"
+    elif reply_min > 0:
+        length_hint = f"\n\n【回复长度要求】请将每次回复至少回复 {reply_min} 字。"
+
+    system_text = ((prompt or "") + length_hint).strip() or None
+
+    effective_max_tokens = max_tokens
+    if not effective_max_tokens and reply_max > 0:
+        effective_max_tokens = reply_max * 4
+    if not effective_max_tokens or effective_max_tokens <= 0:
+        effective_max_tokens = 4096
+
+    url = f"{base_url}/v1/messages"
+    payload: Dict[str, Any] = {
+        "model": settings.model or "claude-sonnet-4-20250514",
+        "max_tokens": effective_max_tokens,
+        "messages": _build_anthropic_messages(user_text, image_b64, history),
+    }
+    if system_text:
+        payload["system"] = system_text
+
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, data=json.dumps(payload),
+                             timeout=timeout_s, proxies=_smart_proxies(base_url))
+    except requests.exceptions.Timeout:
+        raise RuntimeError("请求超时，请检查网络或稍后重试。")
+    except requests.exceptions.ConnectionError:
+        raise RuntimeError("无法连接到 API 服务器，请检查网络和 Base URL。")
+
+    if resp.status_code == 401:
+        raise RuntimeError("API Key 无效或已过期，请检查后重新填写。")
+    if resp.status_code == 404:
+        raise RuntimeError(f"模型 {settings.model} 不存在或不可用。")
+    if resp.status_code == 429:
+        raise RuntimeError("请求频率过高或余额不足，请稍后再试。")
+    if resp.status_code >= 400:
+        try:
+            j = resp.json()
+            err_obj = j.get("error", {})
+            msg = err_obj.get("message") if isinstance(err_obj, dict) else resp.text[:200]
+        except Exception:
+            msg = resp.text[:200]
+        raise RuntimeError(f"API 请求失败 (HTTP {resp.status_code})：{msg}")
+
+    data = resp.json()
+    text = ""
+    try:
+        content_blocks = data.get("content", [])
+        parts = []
+        for block in content_blocks:
+            if isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        raw_text = "\n".join(parts)
+        text = _strip_think_tags(raw_text)
+        if not text:
+            raise RuntimeError("模型返回了空内容，请检查模型配置或稍后重试。")
+    except RuntimeError:
+        raise
+    except Exception:
+        text = ""
+
+    usage = data.get("usage", {})
+    tokens = _safe_int(usage.get("input_tokens", 0), 0) + _safe_int(usage.get("output_tokens", 0), 0)
+    return AIReply(text=text or "", tokens=tokens, raw=data if isinstance(data, dict) else None)
+
+
 def list_models(settings: AISettings, *, timeout_s: int = 15) -> List[str]:
+    if is_anthropic_native(settings.base_url):
+        api_key = (settings.api_key or "").strip()
+        if not api_key:
+            raise RuntimeError("API Key 为空，请先填写。")
+        return list(_ANTHROPIC_MODELS)
     base_url = _normalize_base_url(settings.base_url)
     api_key = (settings.api_key or "").strip()
     if not api_key:
