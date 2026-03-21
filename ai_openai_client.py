@@ -243,7 +243,7 @@ def _build_anthropic_messages(
     messages: list = []
     if history:
         messages.extend(history)
-        if not skip_system and len(history) >= 2:
+        if len(history) >= 2:
             last_assistant = ""
             for h in reversed(history):
                 if h.get("role") == "assistant":

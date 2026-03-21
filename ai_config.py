@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 
 def _config_dir() -> str:
-    from main import get_config_dir
+    from config_utils import get_config_dir
     return get_config_dir()
 
 

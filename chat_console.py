@@ -33,7 +33,7 @@ from chat_memory import (
     get_recent_turns,
 )
 
-from main import get_config_dir
+from config_utils import get_config_dir
 
 
 class _AIWorker(QThread):
@@ -102,6 +102,9 @@ class ChatConsole(QDialog):
         self._compact_mode = True
         self._expanded_log_ids = set()
         self._item_by_log_id: Dict[int, QListWidgetItem] = {}
+        self._status_reset_timer = QTimer()
+        self._status_reset_timer.setSingleShot(True)
+        self._status_reset_timer.timeout.connect(lambda: self._set_status("ready", "待命中"))
 
         root = QVBoxLayout()
         root.setContentsMargins(10, 10, 10, 10)
@@ -348,24 +351,32 @@ class ChatConsole(QDialog):
         self.history_stack.setCurrentIndex(1 if self._show_history else 0)
         self._reload_history()
 
-    def _reload_history(self):
+    def _reload_history(self, incremental: bool = False):
         if not self._show_history:
             return
-        # 保存滚动位置
+        logs = list_logs(50)
+        if incremental and logs and self.list_history.count() > 0:
+            newest = logs[0]
+            nid = int(newest.get("id", 0) or 0)
+            if nid and nid not in self._item_by_log_id:
+                it = QListWidgetItem()
+                it.setData(Qt.ItemDataRole.UserRole, nid)
+                self.list_history.insertItem(0, it)
+                self._item_by_log_id[nid] = it
+                self._render_history_item_widget(it, newest)
+                return
         scrollbar = self.list_history.verticalScrollBar()
         old_scroll = scrollbar.value() if scrollbar else 0
         self.list_history.clear()
         self._item_by_log_id = {}
-        for item in list_logs(50):
+        for item in logs:
             it = QListWidgetItem()
             log_id = int(item.get("id", 0) or 0)
             it.setData(Qt.ItemDataRole.UserRole, log_id)
             self.list_history.addItem(it)
             self._item_by_log_id[log_id] = it
             self._render_history_item_widget(it, item)
-        # 恢复滚动位置
         if scrollbar and old_scroll > 0:
-            from PyQt6.QtCore import QTimer
             QTimer.singleShot(0, lambda: scrollbar.setValue(old_scroll))
 
     def _render_history_item_widget(self, it: QListWidgetItem, data: dict):
@@ -594,17 +605,8 @@ class ChatConsole(QDialog):
             if not self._sending:
                 self._set_status("ready", "待命中")
 
-    def _start_auto_watch(self):
-        # 已迁移到 pet_core：保留函数名避免旧调用，但不再使用
-        return
 
-    def _stop_auto_watch(self):
-        # 已迁移到 pet_core
-        return
 
-    def _auto_watch_tick(self):
-        # 已迁移到 pet_core
-        return
 
     # ═══════ screenshot ═══════
     def _grab_screen_png(self) -> Optional[bytes]:
@@ -636,7 +638,7 @@ class ChatConsole(QDialog):
 
     def _sync_app_bubbles_checkbox_from_config(self):
         try:
-            from settings_ui import _load_json
+            from config_utils import load_json as _load_json
             obj = _load_json(self._bubbles_path(), {"version": 1, "settings": {}})
             enabled = bool((obj.get("settings") or {}).get("enabled", True))
             self.cb_app_bubbles.setChecked(enabled)
@@ -651,7 +653,7 @@ class ChatConsole(QDialog):
         enabled = state == Qt.CheckState.Checked.value
         # persist to bubbles.json and apply immediately
         try:
-            from settings_ui import _load_json, _save_json
+            from config_utils import load_json as _load_json, save_json as _save_json
             obj = _load_json(self._bubbles_path(), {"version": 1, "settings": {}})
             if "settings" not in obj or not isinstance(obj.get("settings"), dict):
                 obj["settings"] = {}
@@ -698,18 +700,11 @@ class ChatConsole(QDialog):
         if not text and not self.cb_attach_screen.isChecked():
             return
 
-        # wake pet if sleeping
         try:
             if getattr(self.pet, "state", None) == "SLEEP" and hasattr(self.pet, "_trigger_poke"):
                 self.pet._trigger_poke()
         except Exception:
             pass
-
-        self._sending = True
-        self.btn_send.setEnabled(False)
-        self.btn_send.setText("思考中…")
-        self._set_status("busy", "正在努力理解中…")
-        self._set_pet_thinking(True)
 
         attach = bool(self.cb_attach_screen.isChecked())
         screenshot_bytes = self._grab_screen_png() if attach else None
@@ -719,7 +714,6 @@ class ChatConsole(QDialog):
         self._prompt_cache = text if text else ("[截取了当前屏幕画面]" if attach else "")
         self._attach_cache = attach
 
-        # 立即清空输入框并禁用，给用户明确的"已发送"反馈
         self.ed_input.setPlainText("")
         self.ed_input_line.setText("")
         self.ed_input.setReadOnly(True)
@@ -727,37 +721,16 @@ class ChatConsole(QDialog):
         self.ed_input.setPlaceholderText("桌宠正在思考中…")
         self.ed_input_line.setPlaceholderText("桌宠正在思考中…")
 
-        # load memory turns
-        settings = load_ai_settings()
-        history = get_recent_turns(settings.max_memory_turns) if settings.max_memory_turns > 0 else None
-
-        worker = _AIWorker(
-            text or "请根据截图给出反馈。",
-            screenshot_bytes if attach else None,
-            history=history,
-            parent=self,
-        )
-        worker.finished.connect(self._on_ai_done)
-        worker.error.connect(self._on_ai_error)
-        worker.finished.connect(worker.deleteLater)
-        worker.error.connect(worker.deleteLater)
-        self._worker = worker
-        worker.start()
+        self._start_ai_worker(text or "请根据截图给出反馈。", screenshot_bytes if attach else None)
 
     def _send_override(self, *, prompt_text: str, force_screenshot: bool):
         if self._sending:
             return
-        # wake pet if sleeping
         try:
             if getattr(self.pet, "state", None) == "SLEEP" and hasattr(self.pet, "_trigger_poke"):
                 self.pet._trigger_poke()
         except Exception:
             pass
-
-        self._sending = True
-        self.btn_send.setEnabled(False)
-        self._set_status("busy", "正在努力理解中…")
-        self._set_pet_thinking(True)
 
         screenshot_bytes = self._grab_screen_png() if force_screenshot else None
         if force_screenshot and screenshot_bytes is None:
@@ -765,14 +738,24 @@ class ChatConsole(QDialog):
         self._prompt_cache = prompt_text
         self._attach_cache = bool(force_screenshot and screenshot_bytes)
 
-        settings = load_ai_settings()
-        history = get_recent_turns(settings.max_memory_turns) if settings.max_memory_turns > 0 else None
-        worker = _AIWorker(
+        self._start_ai_worker(
             prompt_text or "请根据截图给出反馈。",
             screenshot_bytes if (force_screenshot and screenshot_bytes) else None,
-            history=history,
-            parent=self,
         )
+
+    def _start_ai_worker(self, user_text: str, screenshot_bytes: Optional[bytes]):
+        """Common worker setup shared by _send and _send_override."""
+        self._sending = True
+        self._status_reset_timer.stop()
+        self.btn_send.setEnabled(False)
+        self.btn_send.setText("思考中…")
+        self._set_status("busy", "正在努力理解中…")
+        self._set_pet_thinking(True)
+
+        settings = load_ai_settings()
+        history = get_recent_turns(settings.max_memory_turns) if settings.max_memory_turns > 0 else None
+
+        worker = _AIWorker(user_text, screenshot_bytes, history=history, parent=self)
         worker.finished.connect(self._on_ai_done)
         worker.error.connect(self._on_ai_error)
         worker.finished.connect(worker.deleteLater)
@@ -823,12 +806,12 @@ class ChatConsole(QDialog):
         QTimer.singleShot(max(0, delay_ms), _show)
 
         self._set_status("ok", f"已送达桌面（{tokens}tok）")
-        QTimer.singleShot(3000, lambda: self._set_status("ready", "待命中"))
+        self._status_reset_timer.start(3000)
         self.ed_input.setReadOnly(False)
         self.ed_input_line.setReadOnly(False)
         self.ed_input.setPlaceholderText("想说点什么…（Enter 发送，Shift+Enter 换行）")
         self.ed_input_line.setPlaceholderText("想说点什么…（Enter 发送）")
-        self._reload_history()
+        self._reload_history(incremental=True)
         self._sending = False
         self.btn_send.setEnabled(True)
         self.btn_send.setText("发送")
@@ -836,7 +819,7 @@ class ChatConsole(QDialog):
     def _on_ai_error(self, msg: str):
         self._set_pet_thinking(False)
         self._set_status("error", f"失败：{msg}")
-        QTimer.singleShot(5000, lambda: self._set_status("ready", "待命中"))
+        self._status_reset_timer.start(5000)
         self.ed_input.setReadOnly(False)
         self.ed_input_line.setReadOnly(False)
         self.ed_input.setPlaceholderText("想说点什么…（Enter 发送，Shift+Enter 换行）")
@@ -852,5 +835,4 @@ class ChatConsole(QDialog):
 
     def closeEvent(self, event):
         self._set_pet_thinking(False)
-        self._stop_auto_watch()
         super().closeEvent(event)

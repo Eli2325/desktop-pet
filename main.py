@@ -5,46 +5,11 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 # 导入日志模块
 from logger import logger, log_exception
 
+# Shared helpers live in config_utils to avoid circular imports.
+from config_utils import get_resource_path, get_config_dir  # noqa: F401  re-exported
+
 # Import only the pet core. All config file bootstrapping is handled inside DesktopPet.
 from pet_core import DesktopPet
-
-
-def get_resource_path(relative_path):
-    """获取资源文件路径（兼容开发环境和打包后的exe）
-    
-    优先级：
-    1. exe同级目录的资源（用户可修改）
-    2. 打包内置资源（fallback）
-    """
-    try:
-        # 打包后，优先从exe所在目录加载
-        if getattr(sys, 'frozen', False):
-            # 获取exe所在目录
-            exe_dir = os.path.dirname(sys.executable)
-            external_path = os.path.join(exe_dir, relative_path)
-            
-            # 如果exe同级目录有资源，用外部的（用户可修改）
-            if os.path.exists(external_path):
-                return external_path
-            
-            # 否则用打包内置的资源
-            base_path = sys._MEIPASS
-        else:
-            # 开发环境，资源在脚本所在目录
-            base_path = os.path.dirname(os.path.abspath(__file__))
-    except AttributeError:
-        # 开发环境fallback
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    return os.path.join(base_path, relative_path)
-
-
-def get_config_dir():
-    """获取配置文件目录（用户可写目录）"""
-    # 配置文件放在用户目录下的.desktop_pet文件夹
-    config_dir = os.path.join(os.path.expanduser("~"), ".desktop_pet")
-    os.makedirs(config_dir, exist_ok=True)
-    return config_dir
 
 
 def ensure_default_configs():

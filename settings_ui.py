@@ -66,6 +66,9 @@ def _load_json(path: str, default: dict) -> dict:
         return default
 
 def _save_json(path: str, data: dict) -> None:
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -166,7 +169,7 @@ class SettingsDialog(QDialog):
             pass
 
         # 从pet_core获取正确的配置文件路径
-        from main import get_config_dir
+        from config_utils import get_config_dir
         config_dir = get_config_dir()
         
         self.bubbles_path = os.path.join(config_dir, "bubbles.json")
@@ -361,7 +364,7 @@ class SettingsDialog(QDialog):
         lay.addWidget(self.cb_quiet)
         lay.addSpacing(16)
         # 帮助与路径
-        from main import get_config_dir
+        from config_utils import get_config_dir
         help_group = QGroupBox("帮助与路径")
         help_lay = QVBoxLayout()
         config_dir = get_config_dir()
@@ -380,7 +383,7 @@ class SettingsDialog(QDialog):
 
     def _open_config_dir(self):
         """用系统资源管理器打开配置目录"""
-        from main import get_config_dir
+        from config_utils import get_config_dir
         import subprocess
         config_dir = get_config_dir()
         if os.path.isdir(config_dir):
@@ -1293,6 +1296,27 @@ class SettingsDialog(QDialog):
         
         QTimer.singleShot(0, lambda: QMessageBox.information(self, "已恢复", "文案池已恢复默认设置\n所有预设文案已找回"))
 
+    def _show_toast(self, text: str, duration_ms: int = 2500):
+        """Non-blocking toast notification near the Apply button."""
+        if not hasattr(self, "_toast_label"):
+            from PyQt6.QtWidgets import QLabel
+            self._toast_label = QLabel(self)
+            self._toast_label.setStyleSheet(
+                "background:#2ecc40; color:white; padding:6px 18px;"
+                "border-radius:4px; font-size:13px;"
+            )
+            self._toast_label.hide()
+            self._toast_timer = QTimer()
+            self._toast_timer.setSingleShot(True)
+            self._toast_timer.timeout.connect(self._toast_label.hide)
+        self._toast_label.setText(text)
+        self._toast_label.adjustSize()
+        x = (self.width() - self._toast_label.width()) // 2
+        self._toast_label.move(x, self.height() - 55)
+        self._toast_label.raise_()
+        self._toast_label.show()
+        self._toast_timer.start(duration_ms)
+
     def _save_apply(self):
         logger.info("用户点击保存按钮，开始应用配置...")
         
@@ -1368,9 +1392,7 @@ class SettingsDialog(QDialog):
                     console.cb_quiet.setChecked(bool(getattr(self.pet, "quiet_mode", False)))
         except Exception:
             pass
-        # 用非阻塞方式提示，避免MessageBox暂停game_loop导致时间戳错乱
-        from PyQt6.QtCore import QTimer as _QTimer
-        _QTimer.singleShot(0, lambda: QMessageBox.information(self, "已保存", "设置已保存并应用。"))
+        self._show_toast("设置已保存并应用")
 
     # ---------- Mapping ----------
     def _populate_mapping_list(self):

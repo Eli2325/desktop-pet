@@ -258,7 +258,7 @@ class DesktopPet(QMainWindow):
 
         # ---------- 0) 资源路径（兼容开发环境和打包exe） ----------
         # 导入main.py中的路径函数
-        from main import get_resource_path, get_config_dir
+        from config_utils import get_resource_path, get_config_dir
         
         # assets目录：从exe内部读取（只读）
         self.assets_dir = get_resource_path("assets")
@@ -525,10 +525,11 @@ class DesktopPet(QMainWindow):
         self.time_checker.timeout.connect(self.check_real_time)
         self.time_checker.start(1000)
 
-        # 前台应用监听（v5）：只在切换时产生候选气泡
+        # 前台应用监听：间隔可通过 pet_settings.json 的 activity_poll_ms 配置
         self.activity_timer = QTimer()
         self.activity_timer.timeout.connect(self._poll_foreground_app)
-        self.activity_timer.start(200)
+        poll_ms = int(self.pet_settings.get('activity_poll_ms', 300))
+        self.activity_timer.start(max(100, poll_ms))
 
         # 待机闲聊定时器（读取配置，默认10分钟）
         self.idle_chat_timer = QTimer()

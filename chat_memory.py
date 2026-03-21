@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import time
 from typing import Any, Dict, List, Optional
 
@@ -40,8 +41,9 @@ def append_log(
     obj = _load()
     logs: List[Dict[str, Any]] = obj.get("logs", [])
     now_ms = int(time.time() * 1000)
+    uid = now_ms * 1000 + random.randint(0, 999)
     item = {
-        "id": now_ms,
+        "id": uid,
         "type": kind,
         "prompt": prompt,
         "response": response,
