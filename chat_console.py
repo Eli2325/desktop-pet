@@ -266,7 +266,7 @@ class ChatConsole(QDialog):
             self._toggle_history()
             # 紧凑模式隐藏整个黑匣子区域
             self.history_container.setVisible(False)
-            self.lbl_status.setVisible(False)
+            self.lbl_status.setVisible(True)
             # 紧凑版：三个开关保留文字
             self.cb_attach_screen.setVisible(True)
             self.cb_auto_watch.setVisible(True)
@@ -351,6 +351,9 @@ class ChatConsole(QDialog):
     def _reload_history(self):
         if not self._show_history:
             return
+        # 保存滚动位置
+        scrollbar = self.list_history.verticalScrollBar()
+        old_scroll = scrollbar.value() if scrollbar else 0
         self.list_history.clear()
         self._item_by_log_id = {}
         for item in list_logs(50):
@@ -360,6 +363,10 @@ class ChatConsole(QDialog):
             self.list_history.addItem(it)
             self._item_by_log_id[log_id] = it
             self._render_history_item_widget(it, item)
+        # 恢复滚动位置
+        if scrollbar and old_scroll > 0:
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: scrollbar.setValue(old_scroll))
 
     def _render_history_item_widget(self, it: QListWidgetItem, data: dict):
         log_id = int(data.get("id", 0) or 0)
@@ -689,6 +696,7 @@ class ChatConsole(QDialog):
 
         self._sending = True
         self.btn_send.setEnabled(False)
+        self.btn_send.setText("思考中…")
         self._set_status("busy", "正在努力理解中…")
         self._set_pet_thinking(True)
 
@@ -699,6 +707,14 @@ class ChatConsole(QDialog):
 
         self._prompt_cache = text if text else ("[截取了当前屏幕画面]" if attach else "")
         self._attach_cache = attach
+
+        # 立即清空输入框并禁用，给用户明确的"已发送"反馈
+        self.ed_input.setPlainText("")
+        self.ed_input_line.setText("")
+        self.ed_input.setReadOnly(True)
+        self.ed_input_line.setReadOnly(True)
+        self.ed_input.setPlaceholderText("桌宠正在思考中…")
+        self.ed_input_line.setPlaceholderText("桌宠正在思考中…")
 
         # load memory turns
         settings = load_ai_settings()
@@ -797,18 +813,26 @@ class ChatConsole(QDialog):
 
         self._set_status("ok", f"已送达桌面（{tokens}tok）")
         QTimer.singleShot(3000, lambda: self._set_status("ready", "待命中"))
-        self.ed_input.setPlainText("")
-        self.ed_input_line.setText("")
+        self.ed_input.setReadOnly(False)
+        self.ed_input_line.setReadOnly(False)
+        self.ed_input.setPlaceholderText("想说点什么…（Enter 发送，Shift+Enter 换行）")
+        self.ed_input_line.setPlaceholderText("想说点什么…（Enter 发送）")
         self._reload_history()
         self._sending = False
         self.btn_send.setEnabled(True)
+        self.btn_send.setText("发送")
 
     def _on_ai_error(self, msg: str):
         self._set_pet_thinking(False)
         self._set_status("error", f"失败：{msg}")
         QTimer.singleShot(5000, lambda: self._set_status("ready", "待命中"))
+        self.ed_input.setReadOnly(False)
+        self.ed_input_line.setReadOnly(False)
+        self.ed_input.setPlaceholderText("想说点什么…（Enter 发送，Shift+Enter 换行）")
+        self.ed_input_line.setPlaceholderText("想说点什么…（Enter 发送）")
         self._sending = False
         self.btn_send.setEnabled(True)
+        self.btn_send.setText("发送")
         self._pending_update_log_id = None
 
     def showEvent(self, event):

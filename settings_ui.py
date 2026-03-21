@@ -1264,6 +1264,15 @@ class SettingsDialog(QDialog):
         except Exception:
             old_filters_exe = set()
         
+        # 保存前从配置文件同步应用气泡开关（控制台可能已修改）
+        try:
+            _fresh = _load_json(self.bubbles_path, {"version": 1, "settings": {}})
+            _fresh_enabled = bool((_fresh.get("settings") or {}).get("enabled", True))
+            self.cb_enabled.setChecked(_fresh_enabled)
+            if hasattr(self, 'cb_app_bubbles_ai'):
+                self.cb_app_bubbles_ai.setChecked(_fresh_enabled)
+        except Exception:
+            pass
         self._gather_from_widgets()
         
         logger.info(f"保存配置文件到: {self.pet_settings_path}")

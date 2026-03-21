@@ -80,6 +80,14 @@ def _build_messages(
         user_text = f"{length_hint.strip()}\n\n{user_text}"
     if history:
         messages.extend(history)
+        if not skip_system and len(history) >= 2:
+            last_assistant = ""
+            for h in reversed(history):
+                if h.get("role") == "assistant":
+                    last_assistant = h.get("content", "")
+                    break
+            if last_assistant:
+                user_text = user_text + "\n\n（请用不同的句式和角度回复，不要重复之前说过的内容）"
     if image_b64_png:
         messages.append(
             {
@@ -235,6 +243,14 @@ def _build_anthropic_messages(
     messages: list = []
     if history:
         messages.extend(history)
+        if not skip_system and len(history) >= 2:
+            last_assistant = ""
+            for h in reversed(history):
+                if h.get("role") == "assistant":
+                    last_assistant = h.get("content", "")
+                    break
+            if last_assistant:
+                user_text = user_text + "\n\n（请用不同的句式和角度回复，不要重复之前说过的内容）"
     if image_b64_png:
         messages.append({
             "role": "user",
