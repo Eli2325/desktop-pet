@@ -205,6 +205,28 @@ _ANTHROPIC_MODELS = [
 ]
 
 
+
+def _merge_consecutive_roles(messages: list) -> list:
+    """Anthropic requires strict user/assistant alternation.
+    Merge consecutive same-role messages into one."""
+    if not messages:
+        return messages
+    merged: list = [messages[0]]
+    for msg in messages[1:]:
+        if not isinstance(msg, dict):
+            continue
+        if msg.get("role") == merged[-1].get("role"):
+            prev_content = merged[-1].get("content", "")
+            cur_content = msg.get("content", "")
+            if isinstance(prev_content, str) and isinstance(cur_content, str):
+                merged[-1]["content"] = prev_content + "\n" + cur_content
+            else:
+                merged.append(msg)
+        else:
+            merged.append(msg)
+    return merged
+
+
 def _build_anthropic_messages(
     user_text: str,
     image_b64_png: Optional[str],
@@ -273,14 +295,14 @@ def _chat_completion_anthropic(
     payload: Dict[str, Any] = {
         "model": settings.model or "claude-sonnet-4-20250514",
         "max_tokens": effective_max_tokens,
-        "messages": _build_anthropic_messages(user_text, image_b64, history),
+        "messages": _merge_consecutive_roles(_build_anthropic_messages(user_text, image_b64, history)),
     }
     if system_text:
         payload["system"] = system_text
 
     headers = {
         "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": "2024-10-22",
         "content-type": "application/json",
     }
 

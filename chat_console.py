@@ -59,7 +59,8 @@ class _AIWorker(QThread):
             if not (settings.api_key or "").strip():
                 self.error.emit("未连接：请先在设置→AI 填写 API Key")
                 return
-            max_tok = settings.max_bubble_length * 3 if settings.max_bubble_length > 0 else None
+            reply_max = int(getattr(settings, "reply_max_length", 0) or 0)
+            max_tok = reply_max * 4 if reply_max > 0 else None
             reply = chat_completion(
                 settings,
                 self._user_text or "请根据截图给出反馈。",

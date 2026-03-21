@@ -996,7 +996,7 @@ class DesktopPet(QMainWindow):
                 pass
             bubble_text = text
             try:
-                bl = int(getattr(s, "max_bubble_length", 60) or 60)
+                bl = int(getattr(s, "reply_max_length", 60) or 60)
                 # 气泡显示上限 = 用户设定字数 + 20 缓冲
                 bubble_limit = bl + 20 if bl > 0 else 0
                 if bubble_limit > 0 and len(bubble_text) > bubble_limit:
@@ -1010,6 +1010,7 @@ class DesktopPet(QMainWindow):
                     self._request_notice(text)
                 except Exception:
                     pass
+            self._ai_watch_retry_count = 0
             self._ai_watch_busy = False
             try:
                 worker.deleteLater()
@@ -1018,6 +1019,18 @@ class DesktopPet(QMainWindow):
 
         def _err(msg: str):
             logger.warning(f"自动巡视失败: {msg}")
+            retry_count = getattr(self, "_ai_watch_retry_count", 0)
+            if retry_count < 1:
+                self._ai_watch_retry_count = retry_count + 1
+                logger.info("自动巡视：首次失败，自动重试…")
+                self._ai_watch_busy = False
+                try:
+                    worker.deleteLater()
+                except Exception:
+                    pass
+                QTimer.singleShot(3000, self._ai_watch_tick)
+                return
+            self._ai_watch_retry_count = 0
             self._ai_watch_busy = False
             try:
                 worker.deleteLater()

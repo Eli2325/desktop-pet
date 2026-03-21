@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon
 from logger import logger
 from ai_config import (
@@ -17,6 +17,41 @@ from ai_config import (
     load_prompt_presets, save_prompt_presets, DEFAULT_PROMPT_PRESETS,
 )
 from ai_openai_client import list_models, chat_completion
+
+
+
+class _FetchModelsWorker(QThread):
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self._settings = settings
+
+    def run(self):
+        try:
+            models = list_models(self._settings)
+            self.finished.emit(models)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class _TestAIWorker(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self._settings = settings
+
+    def run(self):
+        try:
+            r = chat_completion(self._settings, "ping", timeout_s=15)
+            text = (r.text or "").strip()
+            self.finished.emit(text)
+        except Exception as e:
+            self.error.emit(str(e))
+
 
 CATEGORIES = ["chat","video","ai","code","office","browse","gamehub","music"]
 
@@ -2853,38 +2888,55 @@ class SettingsDialog(QDialog):
             pass
 
     def _fetch_models(self):
-        try:
-            s = self._ai_settings_from_widgets()
-            self.btn_fetch_models.setEnabled(False)
-            self.btn_fetch_models.setText("拉取中…")
-            QApplication.processEvents()
-            models = list_models(s)
+        s = self._ai_settings_from_widgets()
+        self.btn_fetch_models.setEnabled(False)
+        self.btn_fetch_models.setText("拉取中…")
+        worker = _FetchModelsWorker(s, parent=self)
+
+        def _on_done(models):
+            self.btn_fetch_models.setEnabled(True)
+            self.btn_fetch_models.setText("获取模型")
             if not models:
                 QMessageBox.information(self, "提示", "返回的模型列表为空。")
                 return
             model, ok = QInputDialog.getItem(self, "选择模型", "可用模型：", models, 0, False)
             if ok and model:
                 self.ai_model.setText(model)
-        except Exception as e:
-            QMessageBox.warning(self, "获取失败", str(e))
-        finally:
+            worker.deleteLater()
+
+        def _on_err(msg):
             self.btn_fetch_models.setEnabled(True)
             self.btn_fetch_models.setText("获取模型")
+            QMessageBox.warning(self, "获取失败", msg)
+            worker.deleteLater()
+
+        worker.finished.connect(_on_done)
+        worker.error.connect(_on_err)
+        self._fetch_worker = worker
+        worker.start()
 
     def _test_ai(self):
-        try:
-            s = self._ai_settings_from_widgets()
-            self.btn_test_ai.setEnabled(False)
-            self.btn_test_ai.setText("测试中…")
-            QApplication.processEvents()
-            r = chat_completion(s, "ping", timeout_s=15)
-            text = (r.text or "").strip()
-            QMessageBox.information(self, "✅ 测试成功", f"模型可用，回复：\n{text[:150]}")
-        except Exception as e:
-            QMessageBox.warning(self, "❌ 测试失败", str(e))
-        finally:
+        s = self._ai_settings_from_widgets()
+        self.btn_test_ai.setEnabled(False)
+        self.btn_test_ai.setText("测试中…")
+        worker = _TestAIWorker(s, parent=self)
+
+        def _on_done(text):
             self.btn_test_ai.setEnabled(True)
             self.btn_test_ai.setText("测试连接")
+            QMessageBox.information(self, "✅ 测试成功", f"模型可用，回复：\n{text[:150]}")
+            worker.deleteLater()
+
+        def _on_err(msg):
+            self.btn_test_ai.setEnabled(True)
+            self.btn_test_ai.setText("测试连接")
+            QMessageBox.warning(self, "❌ 测试失败", msg)
+            worker.deleteLater()
+
+        worker.finished.connect(_on_done)
+        worker.error.connect(_on_err)
+        self._test_worker = worker
+        worker.start()
 
     def _ai_settings_from_widgets(self) -> AISettings:
         s = AISettings()
