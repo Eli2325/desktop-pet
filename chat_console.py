@@ -113,7 +113,7 @@ class ChatConsole(QDialog):
         # ── top bar (draggable) ──
         top = QHBoxLayout()
         title = QLabel("桌宠控制台")
-        title.setStyleSheet("font-weight:bold;")
+        title.setObjectName("ConsoleTitle")
         top.addWidget(title)
         top.addStretch(1)
 
@@ -227,7 +227,9 @@ class ChatConsole(QDialog):
 
         # stretch：历史区可伸缩，输入区固定
         root.setStretchFactor(self.history_container, 1)
+        self.setObjectName("ChatConsole")
         self.setLayout(root)
+        self._apply_frontend_theme()
         self._reload_history()
 
         # initial status
@@ -331,19 +333,146 @@ class ChatConsole(QDialog):
 
     # ═══════ status (with color) ═══════
     def _set_status(self, level: str, msg: str):
-        colors = {
-            "ready": "green",
-            "busy": "blue",
-            "ok": "green",
-            "warn": "orange",
-            "error": "red",
-        }
-        c = colors.get(level, "")
-        if c:
-            self.lbl_status.setStyleSheet(f"font-size:11px; color:{c};")
-        else:
-            self.lbl_status.setStyleSheet("font-size:11px;")
+        self.lbl_status.setProperty("statusLevel", level or "ready")
+        self.lbl_status.style().unpolish(self.lbl_status)
+        self.lbl_status.style().polish(self.lbl_status)
         self.lbl_status.setText(msg)
+
+    def _apply_frontend_theme(self):
+        """Apply a modern frontend-like visual style without changing layout."""
+        self.setStyleSheet(
+            """
+            QDialog#ChatConsole {
+                background: #f5f7fb;
+                border: 1px solid #dbe4f0;
+                border-radius: 12px;
+            }
+            QWidget#TopBar {
+                background: #ffffff;
+                border: 1px solid #e8eef7;
+                border-radius: 10px;
+            }
+            QLabel#ConsoleTitle {
+                color: #1f2937;
+                font-size: 14px;
+                font-weight: 700;
+            }
+            QLabel {
+                color: #1f2937;
+                font-size: 12px;
+            }
+            QLabel[statusLevel="ready"] {
+                background: #ecfdf5;
+                color: #047857;
+                border: 1px solid #a7f3d0;
+                border-radius: 10px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }
+            QLabel[statusLevel="busy"] {
+                background: #eff6ff;
+                color: #1d4ed8;
+                border: 1px solid #bfdbfe;
+                border-radius: 10px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }
+            QLabel[statusLevel="ok"] {
+                background: #ecfdf5;
+                color: #047857;
+                border: 1px solid #6ee7b7;
+                border-radius: 10px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }
+            QLabel[statusLevel="warn"] {
+                background: #fff7ed;
+                color: #c2410c;
+                border: 1px solid #fdba74;
+                border-radius: 10px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }
+            QLabel[statusLevel="error"] {
+                background: #fef2f2;
+                color: #b91c1c;
+                border: 1px solid #fca5a5;
+                border-radius: 10px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }
+            QPushButton {
+                background: #ffffff;
+                color: #1f2937;
+                border: 1px solid #dbe4f0;
+                border-radius: 8px;
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background: #f8fbff;
+                border: 1px solid #b8d0f2;
+            }
+            QPushButton:pressed {
+                background: #edf4ff;
+            }
+            QPushButton#qt_default_push_button, QPushButton:default {
+                background: #2f6fed;
+                color: white;
+                border: 1px solid #2f6fed;
+                font-weight: 700;
+            }
+            QPushButton#qt_default_push_button:hover, QPushButton:default:hover {
+                background: #255fce;
+            }
+            QToolButton {
+                background: transparent;
+                border: 1px solid transparent;
+                border-radius: 7px;
+                padding: 4px;
+                color: #4b5563;
+            }
+            QToolButton:hover {
+                background: #eef3fb;
+                border: 1px solid #d6e0ef;
+            }
+            QLineEdit, QTextEdit {
+                background: #ffffff;
+                border: 1px solid #d4deed;
+                border-radius: 9px;
+                padding: 8px;
+                color: #111827;
+                selection-background-color: #bfdbfe;
+            }
+            QLineEdit:focus, QTextEdit:focus {
+                border: 1px solid #5b9cff;
+            }
+            QListWidget {
+                background: #ffffff;
+                border: 1px solid #dbe4f0;
+                border-radius: 10px;
+                outline: 0;
+            }
+            QCheckBox {
+                spacing: 6px;
+                color: #1f2937;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 1px solid #b8c5d9;
+                border-radius: 4px;
+                background: #ffffff;
+            }
+            QCheckBox::indicator:checked {
+                border: 1px solid #2f6fed;
+                border-radius: 4px;
+                background: #2f6fed;
+            }
+            """
+        )
 
     # ═══════ history / blackbox ═══════
     def _toggle_history(self):
