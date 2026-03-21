@@ -119,6 +119,7 @@ class ChatConsole(QDialog):
 
         # 顶部：图标按钮（紧凑/完整都显示）
         self.btn_pin = QToolButton()
+        self.btn_pin.setObjectName("PinButton")
         self.btn_pin.setCheckable(True)
         self.btn_pin.setChecked(True)
         self.btn_pin.setToolTip("置顶")
@@ -129,13 +130,17 @@ class ChatConsole(QDialog):
         top.addWidget(self.btn_pin)
 
         self.btn_toggle_size = QToolButton()
+        self.btn_toggle_size.setObjectName("ToggleSizeButton")
         self.btn_toggle_size.setToolTip("展开/收起")
+        self.btn_toggle_size.setIconSize(QSize(14, 14))
         self.btn_toggle_size.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
         self.btn_toggle_size.clicked.connect(self._toggle_compact_mode)
         top.addWidget(self.btn_toggle_size)
 
         self.btn_close = QToolButton()
+        self.btn_close.setObjectName("CloseButton")
         self.btn_close.setToolTip("退出")
+        self.btn_close.setIconSize(QSize(14, 14))
         self.btn_close.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarCloseButton))
         self.btn_close.clicked.connect(self.close)
         top.addWidget(self.btn_close)
@@ -281,7 +286,8 @@ class ChatConsole(QDialog):
             self.ed_input_line.setVisible(True)
             # 顶部图标：展开=向下
             self.btn_toggle_size.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
-            self._set_fixed_height(170)
+            # Frontend theme uses larger paddings; compact height needs extra room.
+            self._set_fixed_height(196)
         else:
             self.history_container.setVisible(True)
             self.lbl_status.setVisible(True)
@@ -426,15 +432,34 @@ class ChatConsole(QDialog):
                 background: #255fce;
             }
             QToolButton {
-                background: transparent;
-                border: 1px solid transparent;
+                background: #f8fbff;
+                border: 1px solid #d6e0ef;
                 border-radius: 7px;
                 padding: 4px;
-                color: #4b5563;
+                color: #334155;
             }
             QToolButton:hover {
-                background: #eef3fb;
-                border: 1px solid #d6e0ef;
+                background: #e9f2ff;
+                border: 1px solid #b8d0f2;
+            }
+            QToolButton:pressed {
+                background: #dbeafe;
+                border: 1px solid #93c5fd;
+            }
+            QToolButton:disabled {
+                background: #f3f4f6;
+                border: 1px solid #e5e7eb;
+                color: #9ca3af;
+            }
+            QToolButton#CloseButton:hover {
+                background: #fee2e2;
+                border: 1px solid #fca5a5;
+                color: #b91c1c;
+            }
+            QToolButton#PinButton:checked {
+                background: #e0ecff;
+                border: 1px solid #93b7f3;
+                color: #1d4ed8;
             }
             QLineEdit, QTextEdit {
                 background: #ffffff;
@@ -457,6 +482,9 @@ class ChatConsole(QDialog):
                 spacing: 6px;
                 color: #1f2937;
             }
+            QCheckBox:disabled {
+                color: #9ca3af;
+            }
             QCheckBox::indicator {
                 width: 16px;
                 height: 16px;
@@ -470,6 +498,16 @@ class ChatConsole(QDialog):
                 border: 1px solid #2f6fed;
                 border-radius: 4px;
                 background: #2f6fed;
+            }
+            QCheckBox::indicator:unchecked:disabled {
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                background: #f3f4f6;
+            }
+            QCheckBox::indicator:checked:disabled {
+                border: 1px solid #93c5fd;
+                border-radius: 4px;
+                background: #bfdbfe;
             }
             """
         )
