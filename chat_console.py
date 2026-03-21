@@ -548,12 +548,23 @@ class ChatConsole(QDialog):
         try:
             if hasattr(self.pet, "set_ai_watch_enabled"):
                 self.pet.set_ai_watch_enabled(bool(enabled))
-                # interval 可能刚改过，刷新一次
                 if hasattr(self.pet, "_refresh_ai_watch_timer"):
                     self.pet._refresh_ai_watch_timer()
         except Exception:
             pass
         self._sync_auto_watch_from_pet()
+        self._push_auto_watch_to_settings(enabled)
+
+    def _push_auto_watch_to_settings(self, enabled):
+        """同步自动巡视状态到设置面板。"""
+        try:
+            dlg = getattr(self.pet, "_settings_dialog", None)
+            if dlg and hasattr(dlg, "cb_auto_watch_ai"):
+                dlg.cb_auto_watch_ai.blockSignals(True)
+                dlg.cb_auto_watch_ai.setChecked(bool(enabled))
+                dlg.cb_auto_watch_ai.blockSignals(False)
+        except Exception:
+            pass
 
     def _sync_auto_watch_from_pet(self):
         try:

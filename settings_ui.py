@@ -241,12 +241,50 @@ class SettingsDialog(QDialog):
             self.cb_enabled.setChecked(bool(self.cb_app_bubbles_ai.isChecked()))
         except Exception:
             pass
+        self._push_app_bubbles_outward()
+
+    def _push_app_bubbles_outward(self):
+        """将当前应用检测气泡状态实时同步到控制台、托盘菜单和 pet 运行时。"""
+        if getattr(self, "_loading", False) or getattr(self, "_ai_loading", False):
+            return
+        try:
+            enabled = bool(self.cb_enabled.isChecked())
+            if hasattr(self, "pet"):
+                if hasattr(self.pet, "set_activity_bubbles_enabled"):
+                    self.pet.set_activity_bubbles_enabled(enabled)
+                console = getattr(self.pet, "_chat_console", None)
+                if console and hasattr(console, "cb_app_bubbles"):
+                    console.cb_app_bubbles.blockSignals(True)
+                    console.cb_app_bubbles.setChecked(enabled)
+                    console.cb_app_bubbles.blockSignals(False)
+        except Exception:
+            pass
+
+    def _push_quiet_mode_outward(self):
+        """将安静模式状态实时同步到托盘菜单和 pet 运行时。"""
+        if getattr(self, "_loading", False):
+            return
+        try:
+            quiet = bool(self.cb_quiet.isChecked())
+            if hasattr(self, "pet"):
+                self.pet.quiet_mode = quiet
+                if hasattr(self.pet, "act_quiet"):
+                    self.pet.act_quiet.setChecked(quiet)
+                console = getattr(self.pet, "_chat_console", None)
+                if console and hasattr(console, "cb_quiet"):
+                    console.cb_quiet.blockSignals(True)
+                    console.cb_quiet.setChecked(quiet)
+                    console.cb_quiet.blockSignals(False)
+        except Exception:
+            pass
 
     def _connect_dirty(self):
         """将各标签页中会修改配置的控件连接到 _mark_dirty"""
         self.cb_enabled.stateChanged.connect(self._mark_dirty)
+        self.cb_enabled.stateChanged.connect(lambda _: self._push_app_bubbles_outward())
         self.cb_switch_only.stateChanged.connect(self._mark_dirty)
         self.cb_quiet.stateChanged.connect(self._mark_dirty)
+        self.cb_quiet.stateChanged.connect(self._push_quiet_mode_outward)
         self.sp_move_speed.valueChanged.connect(self._mark_dirty)
         self.sp_ai_interval.valueChanged.connect(self._mark_dirty)
         self.cb_auto_walk.stateChanged.connect(self._mark_dirty)
@@ -2893,6 +2931,9 @@ class SettingsDialog(QDialog):
                 self.pet.set_ai_watch_enabled(bool(enabled))
                 if hasattr(self.pet, "_refresh_ai_watch_timer"):
                     self.pet._refresh_ai_watch_timer()
+            console = getattr(self.pet, "_chat_console", None)
+            if console and hasattr(console, "_sync_auto_watch_from_pet"):
+                console._sync_auto_watch_from_pet()
         except Exception:
             pass
 

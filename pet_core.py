@@ -664,11 +664,14 @@ class DesktopPet(QMainWindow):
         if hasattr(self, 'act_quiet'):
             self.act_quiet.setChecked(self.quiet_mode)
         
-        # 同步设置界面的复选框
+        # 同步设置界面的复选框（用 blockSignals 避免回调循环）
         if hasattr(self, '_settings_dialog') and self._settings_dialog is not None:
             try:
                 if hasattr(self._settings_dialog, 'cb_quiet'):
-                    self._settings_dialog.cb_quiet.setChecked(self.quiet_mode)
+                    w = self._settings_dialog.cb_quiet
+                    w.blockSignals(True)
+                    w.setChecked(self.quiet_mode)
+                    w.blockSignals(False)
             except Exception:
                 pass
 
