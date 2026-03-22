@@ -1,16 +1,29 @@
-"""共享小图标：控制台展开箭头、QSS 用 SVG 下拉箭头等。"""
+"""共享小图标：控制台展开箭头、QComboBox 下拉箭头等。"""
+
+import os
+from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 
-# QComboBox::down-arrow 用（避免 border 三角形在高 DPI 下缩成「横条」）
-# stroke #334155 → URL 编码 %23334155
-COMBO_CHEVRON_DOWN_QSS = (
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' "
-    "width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='none' "
-    "stroke='%23334155' stroke-width='1.75' stroke-linecap='round' "
-    "stroke-linejoin='round' d='M4 6l4 4 4-4'/%3E%3C/svg%3E\")"
-)
+
+def combo_chevron_png_uri() -> str:
+    """生成/更新配置目录下的 PNG，返回 file:// URI 供 QSS image: url() 使用（Fusion 对 SVG data URL 支持差）。"""
+    from config_utils import get_config_dir
+
+    cache = os.path.join(get_config_dir(), "ui_cache")
+    os.makedirs(cache, exist_ok=True)
+    path = os.path.join(cache, "combo_chevron.png")
+    need = True
+    if os.path.isfile(path):
+        try:
+            need = os.path.getsize(path) < 80
+        except OSError:
+            need = True
+    if need:
+        pm = chevron_pixmap(down=True, size=64, color="#334155")
+        pm.save(path, "PNG")
+    return Path(os.path.abspath(path)).as_uri()
 
 
 def chevron_pixmap(*, down: bool = True, size: int = 14, color: str = "#334155") -> QPixmap:

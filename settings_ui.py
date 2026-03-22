@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QPushButton, QFormLayout, QListWidget, QListWidgetItem,
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
-    QSizePolicy, QStyleFactory, QToolButton, QAbstractSpinBox,
+    QSizePolicy, QStyleFactory, QToolButton, QAbstractSpinBox, QButtonGroup,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
 from PyQt6.QtGui import QColor, QIcon, QPalette
@@ -295,43 +295,37 @@ def _settings_stylesheet() -> str:
             border-radius: 8px;
             font-size: 12px;
         }
-        /* 文案池内嵌子标签：去掉 TabBar 默认底框与 pane 顶边重叠导致的黑线 */
-        QTabWidget#SettingsTextPoolTabs QTabBar {
-            border: none;
-            background: transparent;
-        }
-        QTabWidget#SettingsTextPoolTabs::pane {
-            border-left: 1px solid #dbe4f0;
-            border-right: 1px solid #dbe4f0;
-            border-bottom: 1px solid #dbe4f0;
-            border-top: none;
-            border-radius: 0 0 10px 10px;
+        /* 文案池：分段按钮 + StackedWidget（避免 QTabWidget/Fusion 顶栏黑线） */
+        QWidget#SettingsTextPoolShell {
             background: #ffffff;
-            top: 0px;
-            margin-top: 0px;
-            padding-top: 0px;
-        }
-        QTabWidget#SettingsTextPoolTabs QTabBar::tab {
-            background: #eef2f9;
-            color: #334155;
             border: 1px solid #dbe4f0;
-            border-bottom: 1px solid #dbe4f0;
-            border-top-left-radius: 8px;
-            border-top-right-radius: 8px;
+            border-radius: 10px;
+        }
+        QWidget#SettingsTextPoolSegBar {
+            background: #ffffff;
+            border: none;
+            border-bottom: 1px solid #e8eef7;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+        }
+        QToolButton#TextPoolSegButton {
             padding: 8px 16px;
-            margin-right: 3px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: #475569;
             font-weight: 600;
             font-size: 12px;
+            margin: 6px 0 6px 6px;
         }
-        QTabWidget#SettingsTextPoolTabs QTabBar::tab:selected {
-            background: #ffffff;
+        QToolButton#TextPoolSegButton:hover:!checked {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        QToolButton#TextPoolSegButton:checked {
+            background: #e8f1ff;
             color: #1d4ed8;
-            border-bottom-color: #ffffff;
-            margin-bottom: -1px;
-            padding-bottom: 9px;
-        }
-        QTabWidget#SettingsTextPoolTabs QTabBar::tab:hover:!selected {
-            background: #e8f0fe;
+            border: 1px solid #bfdbfe;
         }
         QFrame#SettingsHighlightCard {
             background: #eef5ff;
@@ -626,11 +620,18 @@ def _settings_stylesheet() -> str:
 
 
 def _inject_combo_chevron_qss(qss: str) -> str:
-    from ui_icons import COMBO_CHEVRON_DOWN_QSS
+    """Fusion 对 data: SVG 的 QComboBox::down-arrow 支持差，改用磁盘 PNG + file:// URI。"""
+    try:
+        from ui_icons import combo_chevron_png_uri
 
-    chevron = (
-        f"image: {COMBO_CHEVRON_DOWN_QSS};\n            width: 16px;\n            height: 16px;"
-    )
+        uri = combo_chevron_png_uri()
+        chevron = f'image: url("{uri}");\n            width: 14px;\n            height: 14px;'
+    except Exception:
+        chevron = (
+            "image: none;\n            width: 10px;\n            height: 10px;\n"
+            "border-left: 4px solid transparent;\n            border-right: 4px solid transparent;\n"
+            "border-top: 5px solid #334155;"
+        )
     return qss.replace("__COMBO_CHEVRON_IMG__", chevron)
 
 
@@ -1851,13 +1852,46 @@ class SettingsDialog(QDialog):
         self._populate_mapping_list()
 
     def _build_text(self):
-        """文案池：内嵌子 Tab，避免三种内容纵向堆叠过长。"""
-        sub_tabs = QTabWidget()
-        sub_tabs.setObjectName("SettingsTextPoolTabs")
-        sub_tabs.setDocumentMode(True)
-        sub_tabs.setUsesScrollButtons(True)
+        """文案池：分段按钮 + 堆叠页（无内嵌 QTabWidget，避免 Fusion 顶栏黑线）。"""
+        shell = QWidget()
+        shell.setObjectName("SettingsTextPoolShell")
+        shell_lay = QVBoxLayout(shell)
+        shell_lay.setContentsMargins(0, 0, 0, 0)
+        shell_lay.setSpacing(0)
 
-        # ----- Tab 1：待机闲聊 -----
+        seg_bar = QWidget()
+        seg_bar.setObjectName("SettingsTextPoolSegBar")
+        seg_lay = QHBoxLayout(seg_bar)
+        seg_lay.setContentsMargins(0, 0, 0, 0)
+        seg_lay.setSpacing(0)
+
+        self._text_pool_stack = QStackedWidget()
+        self._text_pool_seg_group = QButtonGroup(self)
+        self._text_pool_seg_group.setExclusive(True)
+
+        tips = (
+            "桌宠在你空闲时偶尔说一句；间隔在「桌宠设置 → 提醒」里设置。",
+            "为某个应用或网站设置专属气泡文案。请先在「应用映射」中确保该对象已被识别。",
+            "按应用类别（如办公、聊天）设置的通用气泡文案；无专属文案时会从这里选。",
+        )
+        labels = ("待机闲聊", "应用专属文案", "类别通用文案")
+
+        for idx, (lab, tip) in enumerate(zip(labels, tips)):
+            b = QToolButton()
+            b.setObjectName("TextPoolSegButton")
+            b.setText(lab)
+            b.setToolTip(tip)
+            b.setCheckable(True)
+            b.setAutoRaise(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            self._text_pool_seg_group.addButton(b, idx)
+            seg_lay.addWidget(b)
+
+        seg_lay.addStretch(1)
+        self._text_pool_seg_group.button(0).setChecked(True)
+        self._text_pool_seg_group.idClicked.connect(self._text_pool_stack.setCurrentIndex)
+
+        # ----- 页 1：待机闲聊 -----
         w_idle = QWidget()
         idle_lay = QVBoxLayout(w_idle)
         hint_idle = QLabel("💡 间隔在「桌宠设置 → 提醒」的「待机闲聊间隔」中设置")
@@ -1877,9 +1911,9 @@ class SettingsDialog(QDialog):
         idle_btn_row.addStretch()
         idle_lay.addLayout(idle_btn_row)
 
-        sub_tabs.addTab(w_idle, "待机闲聊")
+        self._text_pool_stack.addWidget(w_idle)
 
-        # ----- Tab 2：应用专属文案 -----
+        # ----- 页 2：应用专属文案 -----
         w_app = QWidget()
         app_lay = QVBoxLayout(w_app)
 
@@ -1913,9 +1947,9 @@ class SettingsDialog(QDialog):
         app_btn_row.addStretch()
         app_lay.addLayout(app_btn_row)
 
-        sub_tabs.addTab(w_app, "应用专属文案")
+        self._text_pool_stack.addWidget(w_app)
 
-        # ----- Tab 3：类别通用文案 -----
+        # ----- 页 3：类别通用文案 -----
         w_cat = QWidget()
         cat_lay = QVBoxLayout(w_cat)
 
@@ -1949,16 +1983,14 @@ class SettingsDialog(QDialog):
         tip_label.setStyleSheet("color: #64748b; font-size: 11px;")
         cat_lay.addWidget(tip_label)
 
-        sub_tabs.addTab(w_cat, "类别通用文案")
+        self._text_pool_stack.addWidget(w_cat)
 
-        _tb = sub_tabs.tabBar()
-        _tb.setTabToolTip(0, "桌宠在你空闲时偶尔说一句；间隔在「桌宠设置 → 提醒」里设置。")
-        _tb.setTabToolTip(1, "为某个应用或网站设置专属气泡文案。请先在「应用映射」中确保该对象已被识别。")
-        _tb.setTabToolTip(2, "按应用类别（如办公、聊天）设置的通用气泡文案；无专属文案时会从这里选。")
+        shell_lay.addWidget(seg_bar)
+        shell_lay.addWidget(self._text_pool_stack, 1)
 
         root = QVBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(sub_tabs)
+        root.addWidget(shell)
         self.tab_text.setLayout(root)
 
         self.idle_chat_list.itemDoubleClicked.connect(self._idle_chat_item_dbl)
