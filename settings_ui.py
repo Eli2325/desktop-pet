@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QStyleFactory, QToolButton, QAbstractSpinBox, QButtonGroup,
     QStyle, QStyleOptionComboBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QRect
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QRect, QEvent, QObject
 from PyQt6.QtGui import QColor, QIcon, QPalette, QPainter, QPolygon
 from logger import logger
 from ai_config import (
@@ -732,6 +732,29 @@ def _aux_dialog_stylesheet() -> str:
     """
 
 
+class _LightCaptionFilter(QObject):
+    """One-shot event filter: on first Show, force light title bar then remove self."""
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Show:
+            try:
+                from win_title_bar import force_light_title_bar_widget
+                force_light_title_bar_widget(obj)
+                QTimer.singleShot(0, lambda: _force_light_safe(obj))
+            except Exception:
+                pass
+            obj.removeEventFilter(self)
+        return False
+
+
+def _force_light_safe(w):
+    try:
+        from win_title_bar import force_light_title_bar_widget
+        force_light_title_bar_widget(w)
+    except Exception:
+        pass
+
+
 def apply_aux_dialog_theme(w: QWidget) -> None:
     fusion = QStyleFactory.create("Fusion")
     if fusion is not None:
@@ -739,6 +762,8 @@ def apply_aux_dialog_theme(w: QWidget) -> None:
     w.setPalette(_settings_light_palette())
     w.setAutoFillBackground(True)
     w.setStyleSheet(_aux_dialog_stylesheet())
+    if sys.platform == "win32":
+        w.installEventFilter(_LightCaptionFilter(w))
 
 
 def _mb_information(parent, title: str, text: str, icon=QMessageBox.Icon.Information) -> int:
