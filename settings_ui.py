@@ -1124,7 +1124,7 @@ class SettingsDialog(QDialog):
             b.setAutoDefault(is_primary)
             b.setDefault(is_primary)
 
-    def _make_split_tab(self, labels: list, pages: list) -> QWidget:
+    def _make_split_tab(self, labels: list, pages: list, right_footer: QWidget | None = None) -> QWidget:
         container = QWidget()
         container.setObjectName("SettingsTabContainer")
         container.setAutoFillBackground(True)
@@ -1152,7 +1152,16 @@ class SettingsDialog(QDialog):
         if nav.count() > 0:
             nav.setCurrentRow(0)
         splitter.addWidget(left_wrap)
-        splitter.addWidget(stack)
+        if right_footer is not None:
+            right_col = QWidget()
+            right_lay = QVBoxLayout(right_col)
+            right_lay.setContentsMargins(0, 0, 0, 0)
+            right_lay.setSpacing(0)
+            right_lay.addWidget(stack, 1)
+            right_lay.addWidget(right_footer, 0)
+            splitter.addWidget(right_col)
+        else:
+            splitter.addWidget(stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setChildrenCollapsible(False)
@@ -1225,26 +1234,40 @@ class SettingsDialog(QDialog):
         self.page_ai_persona = QWidget()
         self.page_ai_adv = QWidget()
 
-        self.tab_pet = self._make_split_tab(
-            ["行为", "睡眠", "提醒", "安静与路径"],
-            [self.page_pet_behavior, self.page_pet_sleep, self.page_pet_reminders, self.page_pet_help],
-        )
-        # 桌宠「恢复默认」放在侧栏+内容区之上，避免误以为只在「提醒」子页生效
-        self._pet_settings_outer = QWidget()
-        _pet_lay = QVBoxLayout(self._pet_settings_outer)
-        _pet_lay.setContentsMargins(0, 0, 0, 0)
-        _pet_lay.setSpacing(8)
+        # 桌宠「恢复默认」贴在右侧内容区底部（方案 A），不占侧栏上方整行
+        self._pet_restore_footer = QWidget()
+        self._pet_restore_footer.setObjectName("PetRestoreFooter")
+        _pf = QVBoxLayout(self._pet_restore_footer)
+        _pf.setContentsMargins(12, 10, 12, 10)
+        _pf.setSpacing(8)
+        self._pet_restore_sep = QFrame()
+        self._pet_restore_sep.setFrameShape(QFrame.Shape.HLine)
+        self._pet_restore_sep.setFrameShadow(QFrame.Shadow.Sunken)
+        self._pet_restore_sep.setStyleSheet("color: #e2e8f0; background: #e2e8f0; max-height: 1px;")
+        _pf.addWidget(self._pet_restore_sep)
+        _pet_row = QHBoxLayout()
+        _pet_row.setSpacing(12)
         self._pet_restore_hint = QLabel(
             "本页「恢复桌宠默认」仅影响行为/睡眠/提醒（pet_settings.json），不会改动 AI、应用气泡与文案池。"
         )
         self._pet_restore_hint.setWordWrap(True)
         self._pet_restore_hint.setStyleSheet("color: #64748b; font-size: 11px;")
-        _pet_lay.addWidget(self._pet_restore_hint)
+        _pet_row.addWidget(self._pet_restore_hint, 1)
         self._pet_restore_btn_row = QWidget()
         self._pet_restore_btn_row_lay = QHBoxLayout(self._pet_restore_btn_row)
         self._pet_restore_btn_row_lay.setContentsMargins(0, 0, 0, 0)
-        _pet_lay.addWidget(self._pet_restore_btn_row)
-        _pet_lay.addWidget(self.tab_pet, 1)
+        _pet_row.addWidget(
+            self._pet_restore_btn_row,
+            0,
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+        )
+        _pf.addLayout(_pet_row)
+
+        self.tab_pet = self._make_split_tab(
+            ["行为", "睡眠", "提醒", "安静与路径"],
+            [self.page_pet_behavior, self.page_pet_sleep, self.page_pet_reminders, self.page_pet_help],
+            right_footer=self._pet_restore_footer,
+        )
 
         self.tab_bubble = self._make_split_tab(
             ["总开关 & 规则", "应用映射", "文案池", "过滤器"],
@@ -1256,7 +1279,7 @@ class SettingsDialog(QDialog):
         )
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._pet_settings_outer, "🐾 桌宠设置")
+        self.tabs.addTab(self.tab_pet, "🐾 桌宠设置")
         self.tabs.addTab(self.tab_bubble, "💬 应用气泡")
         self.tabs.addTab(self.tab_ai, "🤖 AI 功能")
 
@@ -1672,9 +1695,7 @@ class SettingsDialog(QDialog):
             "将「行为」「睡眠」「提醒」全部恢复为出厂默认，写入 pet_settings.json；不影响应用气泡与 AI。"
         )
         self.btn_restore_defaults.clicked.connect(self._restore_pet_defaults)
-        self._pet_restore_btn_row_lay.addStretch(1)
         self._pet_restore_btn_row_lay.addWidget(self.btn_restore_defaults)
-        self._pet_restore_btn_row_lay.addStretch(1)
 
     def _build_rules(self):
         top_lay = QVBoxLayout()
