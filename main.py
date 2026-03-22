@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import sys
 import os
-from PyQt6.QtCore import QEvent, QMessageLogContext, Qt, QtMsgType, QTimer, qInstallMessageHandler
-from PyQt6.QtGui import QColor, QFont, QHelpEvent, QPalette
-from PyQt6.QtWidgets import QApplication, QLabel, QMessageBox, QStyleFactory, QWidget
+from PyQt6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
+from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleFactory
 
 
 class _QtLogFilter:
@@ -24,80 +22,29 @@ def _qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: s
         print(message, file=sys.stderr)
 
 
-def _tooltip_text_for_widget(w: QWidget) -> str:
-    """沿父链查找第一个非空 toolTip（子控件常无独立提示，应显示父级）。"""
-    while w is not None:
-        t = (w.toolTip() or "").strip()
-        if t:
-            return w.toolTip()
-        w = w.parentWidget()
-    return ""
-
-
-class DesktopPetApp(QApplication):
-    """Windows 下默认样式对 QToolTip 的文本绘制与系统深色模式/样式表冲突时会出现「只有框、字完全不画」。
-    在 notify 里拦截 ToolTip，用独立 QLabel 绘制，不依赖 QToolTip 原生路径。"""
-
-    def __init__(self, argv):
-        super().__init__(argv)
-        self._tip_popup: QLabel | None = None
-        self._tip_timer = QTimer(self)
-        self._tip_timer.setSingleShot(True)
-        self._tip_timer.timeout.connect(self._hide_tip_popup)
-        fusion = QStyleFactory.create("Fusion")
-        if fusion is not None:
-            self.setStyle(fusion)
-        pal = self.palette()
-        for grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
-            pal.setColor(grp, QPalette.ColorRole.ToolTipBase, QColor("#1e293b"))
-            pal.setColor(grp, QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
-        self.setPalette(pal)
-
-    def _ensure_tip_popup(self) -> QLabel:
-        if self._tip_popup is not None:
-            return self._tip_popup
-        lbl = QLabel()
-        lbl.setWindowFlags(
-            Qt.WindowType.ToolTip
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-        )
-        lbl.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        lbl.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        lbl.setTextFormat(Qt.TextFormat.PlainText)
-        lbl.setWordWrap(True)
-        lbl.setMaximumWidth(480)
-        lbl.setStyleSheet(
-            "QLabel { background-color: #1e293b; color: #f8fafc; padding: 10px 14px; "
-            "border: 1px solid #475569; border-radius: 8px; }"
-        )
-        lbl.setFont(QFont("Microsoft YaHei UI", 9))
-        self._tip_popup = lbl
-        return lbl
-
-    def _hide_tip_popup(self) -> None:
-        if self._tip_popup is not None:
-            self._tip_popup.hide()
-
-    def notify(self, receiver, event):
-        if event.type() == QEvent.Type.ToolTip:
-            if isinstance(receiver, QWidget) and isinstance(event, QHelpEvent):
-                tip = _tooltip_text_for_widget(receiver)
-                if tip:
-                    try:
-                        lbl = self._ensure_tip_popup()
-                        lbl.setText(tip)
-                        lbl.adjustSize()
-                        gp = event.globalPos()
-                        lbl.move(int(gp.x()) + 10, int(gp.y()) + 6)
-                        lbl.raise_()
-                        lbl.show()
-                        self._tip_timer.stop()
-                        self._tip_timer.start(10000)
-                        return True
-                    except Exception:
-                        pass
-        return super().notify(receiver, event)
+def _init_app_appearance(app: QApplication) -> None:
+    """全局 Fusion + 浅色 QToolTip（与设置窗一致），走 Qt 原生 ToolTip 显示/隐藏逻辑。"""
+    fusion = QStyleFactory.create("Fusion")
+    if fusion is not None:
+        app.setStyle(fusion)
+    app.setStyleSheet(
+        """
+        QToolTip {
+            background-color: #ffffff;
+            color: #334155;
+            border: 1px solid #dbe4f0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+        }
+        """
+    )
+    pal = app.palette()
+    for grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        pal.setColor(grp, QPalette.ColorRole.ToolTipBase, QColor("#ffffff"))
+        pal.setColor(grp, QPalette.ColorRole.ToolTipText, QColor("#334155"))
+    app.setPalette(pal)
 
 
 # 导入日志模块
@@ -149,7 +96,8 @@ def main() -> None:
         ensure_default_configs()
 
         logger.info("创建QApplication...")
-        app = DesktopPetApp(sys.argv)
+        app = QApplication(sys.argv)
+        _init_app_appearance(app)
         _QtLogFilter.prev_handler = qInstallMessageHandler(_qt_message_handler)
         # 只允许通过菜单 Exit 退出，避免关掉设置窗口就把桌宠一起关了
         app.setQuitOnLastWindowClosed(False)
