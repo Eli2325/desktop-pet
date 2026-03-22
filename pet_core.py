@@ -12,9 +12,19 @@ from ctypes import wintypes
 
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QSystemTrayIcon, QMenu, QGraphicsDropShadowEffect, QStyle, QWidget
 from PyQt6.QtCore import Qt, QTimer, QTime, QSize, QRectF, QRect, QThread, pyqtSignal
-from PyQt6.QtGui import QCursor, QMovie, QPixmap, QPainter, QColor, QFont, QTransform, QIcon, QShortcut, QAction, QKeySequence
+from PyQt6.QtGui import QCursor, QPixmap, QPainter, QColor, QFont, QIcon, QShortcut, QAction, QKeySequence
 
 from logger import logger
+
+from pet_animations import (
+    PET_SIZE_DEFAULT,
+    MIN_SIZE,
+    MAX_SIZE,
+    SIZE_STEP,
+    AnimatedLabel,
+    load_movie_for_key,
+    rebuild_pet_movies,
+)
 
 
 class _AIWatchWorker(QThread):
@@ -57,14 +67,6 @@ class _AIWatchWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
-
-# ========== 你常用的默认尺寸（后续可用 Ctrl+滚轮 / Ctrl+拖边缩放） ==========
-PET_SIZE_DEFAULT = 192
-
-# 缩放范围与步长（不影响物理公式，只改变“碰撞盒/显示盒”的大小）
-MIN_SIZE = 128
-MAX_SIZE = 320
-SIZE_STEP = 8
 
 # 点击 vs 拖拽：移动超过这个像素才算拖拽
 DRAG_THRESHOLD_PX = 8
@@ -121,60 +123,6 @@ class NoticePopup(QWidget):
         self.show()
         self.raise_()
         self._hide_timer.start(max(400, int(duration_ms)))
-
-
-class AnimatedLabel(QLabel):
-    """
-    用 QMovie 但支持“水平翻转”。
-    做法：不用 setMovie 直接播在 label 上，而是每帧拿 currentPixmap() 做镜像后 setPixmap。
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._movie = None
-        self._movie_key = None
-        self._flip = False
-
-    def stop_movie(self):
-        if self._movie is not None:
-            try:
-                self._movie.frameChanged.disconnect(self._on_frame_changed)
-            except Exception:
-                pass
-            self._movie.stop()
-        self._movie = None
-        self._movie_key = None
-
-    def play_movie(self, key: str, movie: QMovie, flip: bool):
-        # 同一动画：只更新翻转
-        if self._movie_key == key and self._movie is movie:
-            self._flip = flip
-            self._render_frame()
-            return
-
-        self.stop_movie()
-        self._movie = movie
-        self._movie_key = key
-        self._flip = flip
-
-        self._movie.frameChanged.connect(self._on_frame_changed)
-        self._movie.start()
-        self._render_frame()
-
-    def set_flip(self, flip: bool):
-        self._flip = flip
-
-    def _on_frame_changed(self, _):
-        self._render_frame()
-
-    def _render_frame(self):
-        if self._movie is None:
-            return
-        pm = self._movie.currentPixmap()
-        if pm.isNull():
-            return
-        if self._flip:
-            pm = pm.transformed(QTransform().scale(-1, 1))
-        self.setPixmap(pm)
 
 
 class BubbleWidget(QWidget):
@@ -1282,33 +1230,13 @@ class DesktopPet(QMainWindow):
 
     # ---------- 资源 ----------
     def _load_movie(self, key: str, filename: str):
-        path = os.path.join(self.assets_dir, filename)
-        if not os.path.exists(path):
-            self.movies[key] = None
-            return
-        mv = QMovie(path)
-        mv.setCacheMode(QMovie.CacheMode.CacheAll)
-        mv.setScaledSize(QSize(self.pet_width, self.pet_height))
-        self.movies[key] = mv
+        self.movies[key] = load_movie_for_key(
+            self.assets_dir, key, filename, self.pet_width, self.pet_height
+        )
 
     def _rebuild_movies_for_size(self):
         """缩放后：重建 QMovie，避免“判定框变了但 GIF 视觉没变”的缓存问题。"""
-        # 先停当前 label 的 movie，避免引用旧对象
-        self.label.stop_movie()
-        self.current_anim = None
-
-        # 停旧 movies
-        for mv in self.movies.values():
-            if mv is not None:
-                try:
-                    mv.stop()
-                except Exception:
-                    pass
-
-        # 重建
-        self.movies = {}
-        for k, fn in self.movie_files.items():
-            self._load_movie(k, fn)
+        rebuild_pet_movies(self)
 
     # ---------- 缩放 ----------
 
