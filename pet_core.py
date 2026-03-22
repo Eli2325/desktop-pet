@@ -11,7 +11,7 @@ import ctypes
 from ctypes import wintypes
 
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QSystemTrayIcon, QMenu, QGraphicsDropShadowEffect, QStyle, QWidget
-from PyQt6.QtCore import Qt, QTimer, QTime, QSize, QRectF, QRect, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QTime, QSize, QRectF, QRect
 from PyQt6.QtGui import QCursor, QPixmap, QPainter, QColor, QFont, QIcon, QShortcut, QAction, QKeySequence
 
 from logger import logger
@@ -25,48 +25,12 @@ from pet_animations import (
     load_movie_for_key,
     rebuild_pet_movies,
 )
-
-
-class _AIWatchWorker(QThread):
-    finished = pyqtSignal(str, int)
-    error = pyqtSignal(str)
-
-    def __init__(self, *, prompt: str, image_bytes: Optional[bytes] = None,
-                 system_prompt_extra: str = "", history: list, parent=None):
-        super().__init__(parent)
-        self._prompt = prompt
-        self._image_bytes = image_bytes
-        self._system_extra = system_prompt_extra
-        self._history = history
-
-    def run(self):
-        try:
-            from ai_config import load_ai_settings
-            from ai_openai_client import chat_completion
-            s = load_ai_settings()
-            if not (s.api_key or "").strip():
-                self.error.emit("未连接：请在设置→AI 填写 Key")
-                return
-            reply_max = int(getattr(s, "reply_max_length", 0) or 0)
-            max_tok = reply_max * 4 if reply_max > 0 else None
-            sys_prompt = None
-            if self._system_extra:
-                base = s.system_prompt or ""
-                sys_prompt = base + "\n\n" + self._system_extra
-            r = chat_completion(
-                s,
-                self._prompt,
-                image_png_bytes=self._image_bytes,
-                system_prompt=sys_prompt,
-                history=self._history,
-                max_tokens=max_tok,
-                timeout_s=30,
-            )
-            text = (r.text or "").strip() or "(无回复)"
-            self.finished.emit(text, int(r.tokens or 0))
-        except Exception as e:
-            self.error.emit(str(e))
-
+from pet_ai_watch import (
+    ai_watch_tick,
+    grab_screen_for_ai_watch,
+    refresh_ai_watch_timer,
+    set_ai_watch_enabled as _set_ai_watch_enabled_impl,
+)
 
 # 点击 vs 拖拽：移动超过这个像素才算拖拽
 DRAG_THRESHOLD_PX = 8
@@ -836,162 +800,17 @@ class DesktopPet(QMainWindow):
     # ---------- AI 自动巡视（后台） ----------
     def set_ai_watch_enabled(self, enabled: bool):
         """由控制台/设置面板调用：开启/关闭自动巡视。"""
-        self.ai_watch_enabled = bool(enabled)
-        if not self.ai_watch_enabled:
-            try:
-                self._ai_watch_timer.stop()
-            except Exception:
-                pass
-            return
-        self._refresh_ai_watch_timer()
+        _set_ai_watch_enabled_impl(self, enabled)
 
     def _refresh_ai_watch_timer(self):
-        try:
-            from ai_config import load_ai_settings
-            s = load_ai_settings()
-            interval = int(getattr(s, "auto_screenshot_interval_min", 0) or 0)
-            if (not self.ai_watch_enabled) or interval <= 0:
-                self._ai_watch_timer.stop()
-                return
-            ms = max(10_000, interval * 60 * 1000)
-            self._ai_watch_timer.start(ms)
-        except Exception:
-            try:
-                self._ai_watch_timer.stop()
-            except Exception:
-                pass
+        refresh_ai_watch_timer(self)
 
     def _grab_screen_for_ai_watch(self) -> Optional[bytes]:
         """截屏并压缩，降低体积。"""
-        try:
-            from PyQt6.QtCore import QBuffer, QByteArray
-            screen = QApplication.primaryScreen()
-            if screen is None:
-                return None
-            pix = screen.grabWindow(0)
-            try:
-                if pix.width() > 1280:
-                    pix = pix.scaledToWidth(1280, Qt.TransformationMode.FastTransformation)
-            except Exception:
-                pass
-            arr = QByteArray()
-            buf = QBuffer(arr)
-            buf.open(QBuffer.OpenModeFlag.WriteOnly)
-            ok = pix.save(buf, "PNG")
-            if not ok:
-                return None
-            return bytes(arr)
-        except Exception:
-            return None
+        return grab_screen_for_ai_watch()
 
     def _ai_watch_tick(self):
-        if not self.ai_watch_enabled or self._ai_watch_busy:
-            return
-        # 控制台正在等待AI回复时，跳过本次巡视，避免两个请求并发
-        try:
-            if self._chat_console and getattr(self._chat_console, "_sending", False):
-                return
-        except Exception:
-            pass
-        self._ai_watch_busy = True
-
-        try:
-            from chat_memory import get_recent_turns, append_log, get_last_watch_response
-            from ai_config import load_ai_settings
-            s = load_ai_settings()
-            history = get_recent_turns(int(getattr(s, "max_memory_turns", 0) or 0)) if int(getattr(s, "max_memory_turns", 0) or 0) > 0 else None
-        except Exception:
-            s = None
-            history = None
-
-        # reasoner模型（R1等）不支持视觉，强制跳过截图
-        from ai_openai_client import _is_reasoner_model
-        is_reasoner = _is_reasoner_model(getattr(s, "model", "") if s else "")
-        vision = bool(getattr(s, "supports_vision", True)) if s else True
-        if is_reasoner:
-            vision = False
-
-        img = None
-        if vision:
-            img = self._grab_screen_for_ai_watch()
-
-        if vision and img:
-            prompt = "这是定时自动截取的屏幕画面，请根据画面内容给出符合你人设的主动发言。"
-            kind = "image"
-            log_prompt = "[自动巡视截屏]"
-        else:
-            prompt = "你正在定时巡视中。请根据对话记忆和你的人设，主动说一些有趣的话。"
-            kind = "text"
-            log_prompt = "[自动巡视]"
-            img = None
-
-        sys_extra = ""
-        try:
-            last_resp = get_last_watch_response()
-            if last_resp:
-                sys_extra = f"【防重复提示】你上次巡视时说了：「{last_resp[:120]}」。请换一个角度或话题，不要重复类似的内容。"
-        except Exception:
-            pass
-
-        worker = _AIWatchWorker(
-            prompt=prompt, image_bytes=img,
-            system_prompt_extra=sys_extra,
-            history=(history or []), parent=self,
-        )
-        self._ai_watch_worker = worker
-
-        def _done(text: str, tokens: int):
-            try:
-                from chat_memory import append_log
-                append_log(prompt=log_prompt, response=text, tokens=tokens, kind=kind, extra={"source": "auto_watch"})
-            except Exception:
-                pass
-            bubble_text = text
-            try:
-                bl = int(getattr(s, "reply_max_length", 60) or 60)
-                # 气泡显示上限 = 用户设定字数 + 20 缓冲
-                bubble_limit = bl + 20 if bl > 0 else 0
-                if bubble_limit > 0 and len(bubble_text) > bubble_limit:
-                    bubble_text = bubble_text[:bubble_limit] + "\u2026"
-            except Exception:
-                pass
-            try:
-                self._show_activity_bubble("\U0001F50D " + bubble_text)
-            except Exception:
-                try:
-                    self._request_notice(text)
-                except Exception:
-                    pass
-            self._ai_watch_retry_count = 0
-            self._ai_watch_busy = False
-            try:
-                worker.deleteLater()
-            except Exception:
-                pass
-
-        def _err(msg: str):
-            logger.warning(f"自动巡视失败: {msg}")
-            retry_count = getattr(self, "_ai_watch_retry_count", 0)
-            if retry_count < 1:
-                self._ai_watch_retry_count = retry_count + 1
-                logger.info("自动巡视：首次失败，自动重试…")
-                self._ai_watch_busy = False
-                try:
-                    worker.deleteLater()
-                except Exception:
-                    pass
-                QTimer.singleShot(3000, self._ai_watch_tick)
-                return
-            self._ai_watch_retry_count = 0
-            self._ai_watch_busy = False
-            try:
-                worker.deleteLater()
-            except Exception:
-                pass
-
-        worker.finished.connect(_done)
-        worker.error.connect(_err)
-        worker.start()
+        ai_watch_tick(self)
 
     def get_activity_paths(self):
         """给设置面板用：返回配置文件路径。"""
