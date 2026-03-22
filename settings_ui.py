@@ -8,9 +8,10 @@ from PyQt6.QtWidgets import (
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
     QSizePolicy, QStyleFactory, QToolButton, QAbstractSpinBox, QButtonGroup,
+    QStyle, QStyleOptionComboBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
-from PyQt6.QtGui import QColor, QIcon, QPalette
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QRect
+from PyQt6.QtGui import QColor, QIcon, QPalette, QPainter, QPolygon
 from logger import logger
 from ai_config import (
     AISettings, load_ai_settings, save_ai_settings,
@@ -590,11 +591,14 @@ def _settings_stylesheet() -> str:
         QComboBox::drop-down:hover {
             background: #e8f0fe;
         }
+        /* 箭头由 _SettingsComboBox.paintEvent 手绘；Fusion 对 QSS image/border 三角支持差 */
         QComboBox::down-arrow {
-            __COMBO_CHEVRON_IMG__
-            subcontrol-position: center right;
-            subcontrol-origin: padding;
-            right: 5px;
+            width: 0px;
+            height: 0px;
+            max-width: 0px;
+            max-height: 0px;
+            border: none;
+            image: none;
         }
 
         /* 主按钮：避免被「对话框内 QWidget 着色」盖掉白字 */
@@ -617,26 +621,6 @@ def _settings_stylesheet() -> str:
             border: 1px solid #1e3a8a;
         }
     """
-
-
-def _inject_combo_chevron_qss(qss: str) -> str:
-    """Fusion 对 data: SVG 的 QComboBox::down-arrow 支持差，改用磁盘 PNG + file:// URI。"""
-    try:
-        from ui_icons import combo_chevron_png_uri
-
-        uri = combo_chevron_png_uri()
-        chevron = f'image: url("{uri}");\n            width: 14px;\n            height: 14px;'
-    except Exception:
-        chevron = (
-            "image: none;\n            width: 10px;\n            height: 10px;\n"
-            "border-left: 4px solid transparent;\n            border-right: 4px solid transparent;\n"
-            "border-top: 5px solid #334155;"
-        )
-    return qss.replace("__COMBO_CHEVRON_IMG__", chevron)
-
-
-def _settings_stylesheet_resolved() -> str:
-    return _inject_combo_chevron_qss(_settings_stylesheet())
 
 
 def _aux_dialog_stylesheet() -> str:
@@ -721,10 +705,12 @@ def _aux_dialog_stylesheet() -> str:
             background: #f8fafc;
         }
         QComboBox::down-arrow {
-            __COMBO_CHEVRON_IMG__
-            subcontrol-position: center right;
-            subcontrol-origin: padding;
-            right: 5px;
+            width: 0px;
+            height: 0px;
+            max-width: 0px;
+            max-height: 0px;
+            border: none;
+            image: none;
         }
         QComboBox QAbstractItemView {
             background: #ffffff;
@@ -752,7 +738,7 @@ def apply_aux_dialog_theme(w: QWidget) -> None:
         w.setStyle(fusion)
     w.setPalette(_settings_light_palette())
     w.setAutoFillBackground(True)
-    w.setStyleSheet(_inject_combo_chevron_qss(_aux_dialog_stylesheet()))
+    w.setStyleSheet(_aux_dialog_stylesheet())
 
 
 def _mb_information(parent, title: str, text: str, icon=QMessageBox.Icon.Information) -> int:
@@ -999,8 +985,53 @@ class _NoWheelChainScrollArea(QScrollArea):
         event.accept()
 
 
+def _settings_combo_arrow_rect(cb: QComboBox) -> QRect:
+    """下拉按钮内箭头区域；样式引擎不可靠时退回右侧条带。"""
+    opt = QStyleOptionComboBox()
+    cb.initStyleOption(opt)
+    r = cb.style().subControlRect(
+        QStyle.ComplexControl.CC_ComboBox,
+        opt,
+        QStyle.SubControl.SC_ComboBoxArrow,
+        cb,
+    )
+    if r.isValid() and r.width() > 0 and r.height() > 0:
+        return r
+    # 与 QSS 中 QComboBox::drop-down width: 26px 一致
+    dw = 26
+    return QRect(max(0, cb.width() - dw), 0, min(dw, cb.width()), cb.height())
+
+
+def _paint_settings_combo_down_arrow(cb: QComboBox, painter: QPainter) -> None:
+    """实心向下三角，叠在原生绘制之上，保证 Fusion+QSS 下仍可见。"""
+    drop = _settings_combo_arrow_rect(cb)
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    cx = drop.center().x()
+    cy = drop.center().y()
+    w, h = 10, 6
+    poly = QPolygon(
+        [
+            QPoint(cx - w // 2, cy - h // 2),
+            QPoint(cx + w // 2, cy - h // 2),
+            QPoint(cx, cy + h // 2 + 1),
+        ]
+    )
+    fill = QColor("#334155" if cb.isEnabled() else "#94a3b8")
+    painter.setBrush(fill)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.drawPolygon(poly)
+    painter.restore()
+
+
 class _SettingsComboBox(QComboBox):
     """在多层滚动/分割布局下，下拉层偶发锚点错误；showPopup 后对齐到控件左下角。"""
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        p = QPainter(self)
+        _paint_settings_combo_down_arrow(self, p)
+        p.end()
 
     def showPopup(self):
         super().showPopup()
@@ -1032,7 +1063,7 @@ class SettingsDialog(QDialog):
             self.setStyle(fusion)
         self.setPalette(_settings_light_palette())
         self.setAutoFillBackground(True)
-        self.setStyleSheet(_settings_stylesheet_resolved())
+        self.setStyleSheet(_settings_stylesheet())
 
     def showEvent(self, event):
         super().showEvent(event)
