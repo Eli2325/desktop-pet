@@ -160,12 +160,16 @@ def load_ai_settings() -> AISettings:
     s.model = str(openai_obj.get("model", defaults.model) or defaults.model)
     s.system_prompt = str(openai_obj.get("system_prompt", defaults.system_prompt) or defaults.system_prompt)
     s.max_bubble_length = 0  # 已废弃，保留兼容旧配置
-    # 注意：这里不能用 `or defaults.xxx`，否则用户显式设置 0 会被错误回退成默认值
-    s.reply_min_length = int(openai_obj.get("reply_min_length", openai_obj.get("max_bubble_length", defaults.reply_min_length)))
-    s.reply_max_length = int(openai_obj.get("reply_max_length", defaults.reply_max_length))
-    s.auto_screenshot_interval_min = int(openai_obj.get("auto_screenshot_interval_min", 0))
-    s.max_memory_turns = int(openai_obj.get("max_memory_turns", defaults.max_memory_turns))
-    s.max_blackbox_logs = int(openai_obj.get("max_blackbox_logs", defaults.max_blackbox_logs))
+    def _si(v: Any, fb: int) -> int:
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return int(fb)
+    s.reply_min_length = _si(openai_obj.get("reply_min_length", openai_obj.get("max_bubble_length", defaults.reply_min_length)), defaults.reply_min_length)
+    s.reply_max_length = _si(openai_obj.get("reply_max_length", defaults.reply_max_length), defaults.reply_max_length)
+    s.auto_screenshot_interval_min = _si(openai_obj.get("auto_screenshot_interval_min", 0), 0)
+    s.max_memory_turns = _si(openai_obj.get("max_memory_turns", defaults.max_memory_turns), defaults.max_memory_turns)
+    s.max_blackbox_logs = _si(openai_obj.get("max_blackbox_logs", defaults.max_blackbox_logs), defaults.max_blackbox_logs)
     s.supports_vision = bool(openai_obj.get("supports_vision", defaults.supports_vision))
     s.provider = str(openai_obj.get("provider", "openai") or "openai")
     return s

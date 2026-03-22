@@ -176,17 +176,16 @@ def chat_completion(
             msg = resp.text[:200]
         raise RuntimeError(f"API 请求失败 (HTTP {resp.status_code})：{msg}")
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError("API 返回了无法解析的内容（非 JSON），请检查 Base URL 是否正确。")
     text = ""
     try:
         msg_obj = data["choices"][0]["message"]
-        # 优先读 content，去除思维链标签后使用
         raw_content = msg_obj.get("content") or ""
         text = _strip_think_tags(raw_content)
         if not text:
-            # content 为空或全是思维链：检查 reasoning_content
-            # 但 reasoning_content 是思考过程，不应直接显示给用户
-            # 此时说明模型没有生成正文，报错提示重试
             reasoning = msg_obj.get("reasoning_content") or ""
             if reasoning:
                 raise RuntimeError("模型只返回了思考过程，未生成正文回复，请重试。")
@@ -194,7 +193,7 @@ def chat_completion(
     except RuntimeError:
         raise
     except Exception:
-        text = ""
+        raise RuntimeError("API 返回了意料之外的数据结构，请检查模型或 Base URL 配置。")
     usage = data.get("usage") if isinstance(data, dict) else {}
     tokens = _safe_int((usage or {}).get("total_tokens", 0), 0)
     return AIReply(text=text or "", tokens=tokens, raw=data if isinstance(data, dict) else None)
@@ -340,12 +339,15 @@ def _chat_completion_anthropic(
         try:
             j = resp.json()
             err_obj = j.get("error", {})
-            msg = err_obj.get("message") if isinstance(err_obj, dict) else resp.text[:200]
+            msg = (err_obj.get("message") if isinstance(err_obj, dict) else None) or resp.text[:200]
         except Exception:
             msg = resp.text[:200]
         raise RuntimeError(f"API 请求失败 (HTTP {resp.status_code})：{msg}")
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError("API 返回了无法解析的内容（非 JSON），请检查 Base URL 是否正确。")
     text = ""
     try:
         content_blocks = data.get("content", [])
@@ -360,7 +362,7 @@ def _chat_completion_anthropic(
     except RuntimeError:
         raise
     except Exception:
-        text = ""
+        raise RuntimeError("API 返回了意料之外的数据结构，请检查模型或 Base URL 配置。")
 
     usage = data.get("usage", {})
     tokens = _safe_int(usage.get("input_tokens", 0), 0) + _safe_int(usage.get("output_tokens", 0), 0)
@@ -393,7 +395,10 @@ def list_models(settings: AISettings, *, timeout_s: int = 15) -> List[str]:
         except Exception:
             msg = resp.text[:200]
         raise RuntimeError(f"模型列表拉取失败 (HTTP {resp.status_code})：{msg}")
-    data = resp.json()
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError("模型列表返回了无法解析的内容（非 JSON），请检查 Base URL。")
     items = data.get("data", []) if isinstance(data, dict) else []
     out: List[str] = []
     if isinstance(items, list):

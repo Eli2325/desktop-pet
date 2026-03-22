@@ -80,9 +80,13 @@ def list_logs(limit: int = 100) -> List[Dict[str, Any]]:
 
 def get_log_by_id(log_id: int) -> Optional[Dict[str, Any]]:
     obj = _load()
+    target = int(log_id)
     for item in obj.get("logs", []):
-        if isinstance(item, dict) and int(item.get("id", -1)) == int(log_id):
-            return item
+        try:
+            if isinstance(item, dict) and int(item.get("id", -1)) == target:
+                return item
+        except (TypeError, ValueError):
+            continue
     return None
 
 
@@ -91,7 +95,13 @@ def delete_log(log_id: int) -> None:
     logs = obj.get("logs", [])
     if not isinstance(logs, list):
         return
-    obj["logs"] = [l for l in logs if int(l.get("id", -1)) != int(log_id)]
+    target = int(log_id)
+    def _keep(entry: Any) -> bool:
+        try:
+            return not isinstance(entry, dict) or int(entry.get("id", -1)) != target
+        except (TypeError, ValueError):
+            return True
+    obj["logs"] = [l for l in logs if _keep(l)]
     _save(obj)
 
 

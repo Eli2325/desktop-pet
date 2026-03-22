@@ -113,7 +113,7 @@ def refresh_ai_watch_timer(pet: Any) -> None:
 
 
 def ai_watch_tick(pet: Any) -> None:
-    if not pet.ai_watch_enabled or pet._ai_watch_busy:
+    if not getattr(pet, "ai_watch_enabled", False) or getattr(pet, "_ai_watch_busy", False):
         return
     try:
         if pet._chat_console and getattr(pet._chat_console, "_sending", False):

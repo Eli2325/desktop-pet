@@ -648,24 +648,6 @@ class ChatConsole(QDialog):
         if it and entry:
             self._render_history_item_widget(it, entry)
 
-    def _history_view(self, log_id: int):
-        entry = get_log_by_id(log_id)
-        if not entry:
-            return
-        ts = entry.get("timestamp", "")
-        tok = entry.get("tokens", 0)
-        kind = entry.get("type", "text")
-        prompt = entry.get("prompt", "")
-        response = entry.get("response", "")
-        text = (
-            f"时间: {ts}    类型: {kind}    Token: {tok}\n"
-            f"{'─' * 40}\n"
-            f"Q: {prompt}\n"
-            f"{'─' * 40}\n"
-            f"A: {response}"
-        )
-        QMessageBox.information(self, "对话详情", text)
-
     def _history_retry(self, log_id: int):
         if self._sending:
             return
@@ -905,6 +887,11 @@ class ChatConsole(QDialog):
         self._prompt_cache = prompt_text
         self._attach_cache = bool(force_screenshot and screenshot_bytes)
 
+        self.ed_input.setReadOnly(True)
+        self.ed_input_line.setReadOnly(True)
+        self.ed_input.setPlaceholderText("桌宠正在思考中…")
+        self.ed_input_line.setPlaceholderText("桌宠正在思考中…")
+
         self._start_ai_worker(
             prompt_text or "请根据截图给出反馈。",
             screenshot_bytes if (force_screenshot and screenshot_bytes) else None,
@@ -919,8 +906,12 @@ class ChatConsole(QDialog):
         self._set_status("busy", "正在努力理解中…")
         self._set_pet_thinking(True)
 
-        settings = load_ai_settings()
-        history = get_recent_turns(settings.max_memory_turns) if settings.max_memory_turns > 0 else None
+        try:
+            settings = load_ai_settings()
+            history = get_recent_turns(settings.max_memory_turns) if settings.max_memory_turns > 0 else None
+        except Exception as e:
+            self._on_ai_error(f"加载配置失败：{e}")
+            return
 
         worker = _AIWorker(user_text, screenshot_bytes, history=history, parent=self)
         worker.finished.connect(self._on_ai_done)
@@ -932,11 +923,10 @@ class ChatConsole(QDialog):
 
     def _on_ai_done(self, response_text: str, tokens: int, kind: str):
         self._set_pet_thinking(False)
-        settings = load_ai_settings()
         bubble_text = response_text
 
         extra = {"source": "console"}
-        if self._pending_update_log_id:
+        if self._pending_update_log_id is not None:
             update_log(
                 int(self._pending_update_log_id),
                 prompt=self._prompt_cache,
@@ -991,6 +981,9 @@ class ChatConsole(QDialog):
         self.ed_input_line.setReadOnly(False)
         self.ed_input.setPlaceholderText("想说点什么…（Enter 发送，Shift+Enter 换行）")
         self.ed_input_line.setPlaceholderText("想说点什么…（Enter 发送）")
+        cached = getattr(self, "_prompt_cache", "") or ""
+        if cached and not self.ed_input.toPlainText().strip():
+            self.ed_input.setPlainText(cached)
         self._sending = False
         self.btn_send.setEnabled(True)
         self.btn_send.setText("发送")
@@ -1002,4 +995,11 @@ class ChatConsole(QDialog):
 
     def closeEvent(self, event):
         self._set_pet_thinking(False)
+        w = getattr(self, "_worker", None)
+        if w is not None:
+            try:
+                w.finished.disconnect(self._on_ai_done)
+                w.error.disconnect(self._on_ai_error)
+            except (TypeError, RuntimeError):
+                pass
         super().closeEvent(event)

@@ -1134,10 +1134,12 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         if minute == 0 and second == 0:
             if hour == 7:
                 self.sleep_theme = "day"
+                self.is_night = False
                 if self.state == "SLEEP":
                     self.update_appearance(force=True)
             elif hour == 19:
                 self.sleep_theme = "night"
+                self.is_night = True
                 if self.state == "SLEEP":
                     self.update_appearance(force=True)
 
@@ -1355,16 +1357,6 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         pm = self._fallback_pixmap(txt)
         self.label.stop_movie()
         self.label.setPixmap(pm)
-    def _end_notice(self):
-        if self.state != "NOTICE":
-            return
-
-        self.state = self.prev_state_for_notice or "IDLE"
-        self.vx = 0.0
-        self.vy = 0.0
-        self.idle_elapsed_ms = 0
-        self.update_appearance(force=True)
-
 
     # ---------- 摸头（Headpat） ----------
     def _maybe_trigger_headpat(self):
@@ -1670,10 +1662,7 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         self.label.stop_movie()
         self.current_anim = None
 
-        text_map = {
-            "NOTICE": getattr(self, "notice_text", "提示"),
-        }
-        txt = text_map.get(self.state, self.state)
+        txt = self.state
         self.label.setPixmap(self._fallback_pixmap(txt))
 
     # ---------- AI ----------
@@ -1912,11 +1901,19 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
             next_x = float(right_edge - self.pet_width)
             hit_wall = True
 
-        # 碰墙进入WALL_SLIDE状态
+        # 碰墙进入WALL_SLIDE状态（但如果已在地面则直接停住，避免闪一帧墙壁动画）
         if hit_wall and self.state != "IDLE":
-            self.state = "WALL_SLIDE"
-            self.vx = 0.0
-            self.update_appearance(force=True)
+            floor_y_check = self.floor_y
+            if next_y + self.pet_height >= floor_y_check:
+                self.state = "IDLE"
+                self.vx = 0.0
+                self.vy = 0.0
+                next_y = float(floor_y_check - self.pet_height)
+                self.update_appearance(force=True)
+            else:
+                self.state = "WALL_SLIDE"
+                self.vx = 0.0
+                self.update_appearance(force=True)
 
         # 3) 地面 / 重力
         floor_y = self.floor_y

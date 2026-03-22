@@ -521,12 +521,13 @@ class PetActivityBubblesMixin:
         
         filters = getattr(self, "filters", {})
         
-        # 检查ignored_exe
         for ignored in filters.get("ignored_exe", []):
-            if ignored and ignored.lower() in exe_l:
+            if not ignored:
+                continue
+            ig = ignored.lower()
+            if ig == exe_l or ig == exe_l.rsplit("\\", 1)[-1]:
                 return True
         
-        # 检查ignored_title_keywords
         for kw in filters.get("ignored_title_keywords", []):
             if kw and kw.lower() in title_l:
                 return True
