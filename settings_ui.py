@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QPushButton, QFormLayout, QListWidget, QListWidgetItem,
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
-    QSizePolicy, QStyleFactory,
+    QSizePolicy, QStyleFactory, QToolButton,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QIcon, QPalette
@@ -324,6 +324,49 @@ def _settings_stylesheet() -> str:
             border: 1px solid #dbe4f0;
             border-radius: 10px;
             outline: 0;
+            color: #111827;
+        }
+        QListWidget::item {
+            color: #111827;
+            padding: 4px 6px;
+        }
+        QListWidget::item:selected {
+            background-color: #2f6fed;
+            color: #ffffff;
+        }
+        QListWidget::item:hover:!selected {
+            background-color: #eef2ff;
+            color: #111827;
+        }
+        QComboBox QAbstractItemView {
+            background: #ffffff;
+            color: #111827;
+            selection-background-color: #dbeafe;
+            selection-color: #1e40af;
+            border: 1px solid #dbe4f0;
+            outline: none;
+        }
+        QWidget#SettingsInnerScrollViewport {
+            background-color: #f5f7fb;
+        }
+        QWidget#SettingsCollapsibleFrame {
+            background-color: #ffffff;
+            border: 1px solid #dbe4f0;
+            border-radius: 10px;
+        }
+        QToolButton#SettingsCollapsibleHeader {
+            color: #1e40af;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 6px 4px;
+            text-align: left;
+            background: transparent;
+            border: none;
+        }
+        QToolButton#SettingsCollapsibleHeader:hover {
+            color: #2563eb;
+            background: #f0f7ff;
+            border-radius: 8px;
         }
         QCheckBox {
             spacing: 6px;
@@ -397,49 +440,31 @@ def _settings_stylesheet() -> str:
             border: none;
         }
 
-        /* 数字框右侧按钮：扁平圆角，对齐控制台风格 */
+        /* 数字框：方案 A — 保留 Fusion 自带箭头，只统一槽底色与分隔线（避免自绘三角变方块） */
         QSpinBox, QDoubleSpinBox {
-            padding-right: 22px;
+            padding-right: 24px;
         }
         QSpinBox::up-button, QDoubleSpinBox::up-button {
             subcontrol-origin: border;
             subcontrol-position: right top;
-            width: 20px;
-            height: 11px;
+            width: 22px;
             border-left: 1px solid #d4deed;
             border-bottom: 1px solid #d4deed;
             border-top-right-radius: 7px;
-            background: #f8fafc;
+            background: #f1f5f9;
         }
         QSpinBox::down-button, QDoubleSpinBox::down-button {
             subcontrol-origin: border;
             subcontrol-position: right bottom;
-            width: 20px;
-            height: 11px;
+            width: 22px;
             border-left: 1px solid #d4deed;
             border-top: 1px solid #d4deed;
             border-bottom-right-radius: 7px;
-            background: #f8fafc;
+            background: #f1f5f9;
         }
         QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
         QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
-            background: #e8f0fe;
-        }
-        QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-bottom: 5px solid #475569;
-            width: 0;
-            height: 0;
-        }
-        QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 5px solid #475569;
-            width: 0;
-            height: 0;
+            background: #e2e8f0;
         }
 
         QComboBox {
@@ -484,6 +509,202 @@ def _settings_stylesheet() -> str:
     """
 
 
+def _aux_dialog_stylesheet() -> str:
+    """QMessageBox / QInputDialog 等独立弹窗：强制浅色，避免跟系统深色冲突。"""
+    return """
+        QDialog {
+            background-color: #f5f7fb;
+        }
+        QLabel {
+            color: #111827;
+            font-size: 12px;
+        }
+        QPushButton {
+            min-width: 76px;
+            padding: 6px 14px;
+            border-radius: 8px;
+            background: #ffffff;
+            border: 1px solid #dbe4f0;
+            color: #111827;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            background: #f8fbff;
+        }
+        QPushButton:default {
+            background: #2f6fed;
+            color: #ffffff;
+            border: 1px solid #2f6fed;
+            font-weight: 700;
+        }
+        QPushButton:default:hover {
+            background: #255fce;
+            color: #ffffff;
+        }
+        QLineEdit, QComboBox {
+            background: #ffffff;
+            border: 1px solid #d4deed;
+            border-radius: 8px;
+            padding: 6px 8px;
+            color: #111827;
+        }
+        QComboBox QAbstractItemView {
+            background: #ffffff;
+            color: #111827;
+            selection-background-color: #dbeafe;
+            selection-color: #1e40af;
+            border: 1px solid #dbe4f0;
+        }
+        QListWidget {
+            background: #ffffff;
+            color: #111827;
+        }
+        QListWidget::item:selected {
+            background: #2f6fed;
+            color: #ffffff;
+        }
+    """
+
+
+def apply_aux_dialog_theme(w: QWidget) -> None:
+    fusion = QStyleFactory.create("Fusion")
+    if fusion is not None:
+        w.setStyle(fusion)
+    w.setPalette(_settings_light_palette())
+    w.setAutoFillBackground(True)
+    w.setStyleSheet(_aux_dialog_stylesheet())
+
+
+def _mb_information(parent, title: str, text: str, icon=QMessageBox.Icon.Information) -> int:
+    mb = QMessageBox(parent)
+    mb.setIcon(icon)
+    mb.setWindowTitle(title)
+    mb.setText(text)
+    apply_aux_dialog_theme(mb)
+    return mb.exec()
+
+
+def _mb_warning(parent, title: str, text: str) -> int:
+    return _mb_information(parent, title, text, QMessageBox.Icon.Warning)
+
+
+def _mb_question(parent, title: str, text: str, default_no: bool = True) -> QMessageBox.StandardButton:
+    mb = QMessageBox(parent)
+    mb.setIcon(QMessageBox.Icon.Question)
+    mb.setWindowTitle(title)
+    mb.setText(text)
+    mb.setStandardButtons(
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+    )
+    mb.setDefaultButton(
+        QMessageBox.StandardButton.No if default_no else QMessageBox.StandardButton.Yes
+    )
+    apply_aux_dialog_theme(mb)
+    return mb.exec()
+
+
+def _input_get_text(
+    parent,
+    title: str,
+    label: str,
+    text: str = "",
+    echo: QLineEdit.EchoMode = QLineEdit.EchoMode.Normal,
+) -> tuple[str, bool]:
+    d = QInputDialog(parent)
+    d.setWindowTitle(title)
+    d.setLabelText(label)
+    d.setTextValue(text)
+    d.setTextEchoMode(echo)
+    apply_aux_dialog_theme(d)
+    ok = d.exec() == QDialog.DialogCode.Accepted
+    return d.textValue(), ok
+
+
+def _input_get_item(
+    parent, title: str, label: str, items: list, current: int = 0, editable: bool = False
+) -> tuple[str, bool]:
+    d = QInputDialog(parent)
+    d.setWindowTitle(title)
+    d.setLabelText(label)
+    d.setComboBoxItems(list(items))
+    d.setComboBoxEditable(editable)
+    if items and 0 <= current < len(items):
+        d.setTextValue(items[current])
+    apply_aux_dialog_theme(d)
+    ok = d.exec() == QDialog.DialogCode.Accepted
+    return d.textValue(), ok
+
+
+def _polish_combo_popup(cb: QComboBox) -> None:
+    try:
+        v = cb.view()
+        v.setStyleSheet(
+            """
+            QAbstractItemView {
+                background: #ffffff;
+                color: #111827;
+                selection-background-color: #dbeafe;
+                selection-color: #1e40af;
+                border: 1px solid #dbe4f0;
+                outline: none;
+            }
+            """
+        )
+        p = v.parentWidget()
+        if p is not None:
+            p.setAutoFillBackground(True)
+            p.setStyleSheet("background: #ffffff; border: 1px solid #dbe4f0; border-radius: 8px;")
+    except Exception:
+        pass
+
+
+def _polish_inner_scroll_viewport(sa: QScrollArea) -> None:
+    vp = sa.viewport()
+    vp.setObjectName("SettingsInnerScrollViewport")
+    vp.setAutoFillBackground(True)
+    vp.setBackgroundRole(QPalette.ColorRole.Window)
+
+
+class _CollapsibleSection(QWidget):
+    """可折叠区块：标题固定，仅 body 内滚动。"""
+
+    def __init__(self, title: str, expanded: bool = True, parent=None):
+        super().__init__(parent)
+        self.setObjectName("SettingsCollapsibleFrame")
+        self._title_plain = title
+        self._header = QToolButton()
+        self._header.setObjectName("SettingsCollapsibleHeader")
+        self._header.setCheckable(True)
+        self._header.setChecked(expanded)
+        self._header.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self._header.setAutoRaise(True)
+        self._header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._sync_header_text()
+        self._header.toggled.connect(self._on_toggled)
+        self._body = QWidget()
+        self._body.setVisible(expanded)
+        self._body_lay = QVBoxLayout(self._body)
+        self._body_lay.setContentsMargins(10, 0, 10, 10)
+        self._body_lay.setSpacing(6)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(4)
+        root.addWidget(self._header)
+        root.addWidget(self._body, 1)
+
+    def _sync_header_text(self):
+        arrow = "▼" if self._header.isChecked() else "▶"
+        self._header.setText(f"{arrow}  {self._title_plain}")
+
+    def _on_toggled(self, on: bool):
+        self._body.setVisible(on)
+        self._sync_header_text()
+
+    def body_layout(self) -> QVBoxLayout:
+        return self._body_lay
+
+
 class _NoWheelChainScrollArea(QScrollArea):
     """子区域滚轮到顶/底后不再把滚轮事件传给外层，避免嵌套滚动串联。"""
 
@@ -518,7 +739,12 @@ class SettingsDialog(QDialog):
         lay.setContentsMargins(12, 12, 12, 12)
         lay.addWidget(inner)
         sc.setWidget(holder)
+        _polish_inner_scroll_viewport(sc)
         return sc
+
+    def _polish_all_combo_popups(self) -> None:
+        for cb in self.findChildren(QComboBox):
+            _polish_combo_popup(cb)
 
     def _make_split_tab(self, labels: list, pages: list) -> QWidget:
         container = QWidget()
@@ -642,6 +868,7 @@ class SettingsDialog(QDialog):
         self._build_text()
         self._build_filters()
         self._build_ai()
+        self._polish_all_combo_popups()
 
         self._loading = False
         self._load_into_widgets()
@@ -828,9 +1055,9 @@ class SettingsDialog(QDialog):
                 else:
                     subprocess.run(["xdg-open", config_dir], check=False)
             except Exception as e:
-                QMessageBox.warning(self, "打开失败", f"无法打开配置目录：{e}")
+                _mb_warning(self, "打开失败", f"无法打开配置目录：{e}")
         else:
-            QMessageBox.information(self, "提示", "配置目录尚不存在，请先运行一次桌宠。")
+            _mb_information(self, "提示", "配置目录尚不存在，请先运行一次桌宠。")
 
 
     def _build_behavior(self):
@@ -1028,114 +1255,103 @@ class SettingsDialog(QDialog):
         self.page_pet_reminders.setLayout(lay_r)
 
     def _build_rules(self):
-        # ===== 上半部分：数值设置 + 各类别冷却（可滚动） =====
         top_lay = QVBoxLayout()
-        
-        # ---- 全局参数 ----
+
+        # ---- 全局参数（固定，不随子区滚动）----
         group_global = QGroupBox("全局参数")
         group_global.setStyleSheet("QGroupBox { font-weight: bold; }")
         global_grid = QGridLayout()
-        
-        # 触发概率
+
         self.sp_prob = QDoubleSpinBox()
         self.sp_prob.setRange(0.0, 1.0)
         self.sp_prob.setSingleStep(0.05)
         self.sp_prob.setToolTip("每次满足条件时，按该概率决定是否弹出活动气泡。")
         global_grid.addWidget(QLabel("触发概率"), 0, 0)
         global_grid.addWidget(self.sp_prob, 0, 1)
-        
-        # 显示时长
+
         self.sp_show = QSpinBox()
         self.sp_show.setRange(500, 20000)
         self.sp_show.setSingleStep(100)
         self.sp_show.setToolTip("活动气泡在屏幕上停留的毫秒数。")
         global_grid.addWidget(QLabel("显示时长（毫秒）"), 0, 2)
         global_grid.addWidget(self.sp_show, 0, 3)
-        
-        # 前台稳定阈值
+
         self.sp_front = QSpinBox()
         self.sp_front.setRange(0, 5000)
         self.sp_front.setSingleStep(50)
         self.sp_front.setToolTip("前台应用切换后需稳定超过该时间（毫秒）才视为真正切换，避免误触发。")
         global_grid.addWidget(QLabel("前台稳定阈值（毫秒）"), 1, 0)
         global_grid.addWidget(self.sp_front, 1, 1)
-        
-        # 最大待定数
+
         self.sp_pending = QSpinBox()
         self.sp_pending.setRange(0, 10)
         self.sp_pending.setSingleStep(1)
         self.sp_pending.setToolTip("最多排队几条「等着说」的提醒。")
         global_grid.addWidget(QLabel("最大待定数"), 1, 2)
         global_grid.addWidget(self.sp_pending, 1, 3)
-        
+
         group_global.setLayout(global_grid)
         global_grid.setColumnStretch(1, 1)
         global_grid.setColumnStretch(3, 1)
         top_lay.addWidget(group_global)
-        
-        # ---- 各类别冷却时间 ----
-        group_cd = QGroupBox("各类别冷却时间")
-        group_cd.setStyleSheet("QGroupBox { font-weight: bold; }")
-        cd_form = QFormLayout()
-        
+
+        # ---- 可折叠：冷却列表（仅内部视口滚动，标题不跟着滚）----
+        sec_cd = _CollapsibleSection("各类别冷却时间", expanded=True)
+        cd_scroll = _NoWheelChainScrollArea()
+        cd_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cd_scroll.setBackgroundRole(QPalette.ColorRole.Window)
+        cd_scroll.setAutoFillBackground(True)
+        _polish_inner_scroll_viewport(cd_scroll)
+        cd_scroll.setWidgetResizable(True)
+        cd_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        cd_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        cd_scroll.setMinimumHeight(168)
+
+        cd_holder = QWidget()
+        cd_form = QFormLayout(cd_holder)
         self.cooldowns = {}
         cooldown_defaults = {
             "browse": 600, "video": 480, "chat": 480, "ai": 360,
             "code": 480, "office": 600, "gamehub": 600, "music": 480
         }
-        
         category_names = {
-            "browse": "浏览",
-            "video": "视频",
-            "chat": "聊天",
-            "ai": "AI",
-            "code": "编程",
-            "office": "办公",
-            "gamehub": "游戏",
-            "music": "音乐"
+            "browse": "浏览", "video": "视频", "chat": "聊天", "ai": "AI",
+            "code": "编程", "office": "办公", "gamehub": "游戏", "music": "音乐"
         }
-        
         for cat in CATEGORIES:
             sp = QSpinBox()
             sp.setRange(0, 86400)
             sp.setSingleStep(30)
-            sp.setToolTip(f"该类别应用触发一次气泡后，需间隔多少秒才能再次触发。")
+            sp.setToolTip("该类别应用触发一次气泡后，需间隔多少秒才能再次触发。")
             self.cooldowns[cat] = sp
-            default_val = cooldown_defaults.get(cat, 600)
             cn_name = category_names.get(cat, cat)
             cd_form.addRow(f"{cn_name} 冷却（秒）", sp)
-        
-        group_cd.setLayout(cd_form)
-        
-        # 各类别冷却时间放入独立滚动区域
-        cd_widget = QWidget()
-        cd_layout = QVBoxLayout()
-        cd_layout.addWidget(group_cd)
-        cd_layout.addStretch(1)
-        cd_widget.setLayout(cd_layout)
-        
-        cd_scroll = _NoWheelChainScrollArea()
-        cd_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        cd_scroll.setBackgroundRole(QPalette.ColorRole.Window)
-        cd_scroll.setAutoFillBackground(True)
-        cd_scroll.setWidgetResizable(True)
-        cd_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        cd_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        cd_scroll.setWidget(cd_widget)
-        
-        # ===== 下半部分：类别管理（可滚动） =====
-        cat_mgmt_section = QGroupBox("管理类别")
-        cat_mgmt_section.setStyleSheet("QGroupBox { font-weight: bold; }")
-        cat_mgmt_lay = QVBoxLayout()
-        
+
+        cd_scroll.setWidget(cd_holder)
+        sec_cd.body_layout().addWidget(cd_scroll, 1)
+
+        # ---- 可折叠：管理类别 ----
+        sec_cat = _CollapsibleSection("管理类别", expanded=True)
+        cat_scroll = _NoWheelChainScrollArea()
+        cat_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cat_scroll.setBackgroundRole(QPalette.ColorRole.Window)
+        cat_scroll.setAutoFillBackground(True)
+        _polish_inner_scroll_viewport(cat_scroll)
+        cat_scroll.setWidgetResizable(True)
+        cat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        cat_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        cat_scroll.setMinimumHeight(220)
+
+        cat_inner = QWidget()
+        cat_v = QVBoxLayout(cat_inner)
         hint_cat = QLabel("💡 添加/删除/重命名类别，冷却时间会同步")
-        hint_cat.setStyleSheet("color: gray; font-size: 11px;")
+        hint_cat.setStyleSheet("color: #64748b; font-size: 11px;")
         hint_cat.setToolTip("类别用于给应用分类（如办公、聊天）；每个类别有独立的冷却时间，在页面上方可调。")
-        cat_mgmt_lay.addWidget(hint_cat)
-        
+        cat_v.addWidget(hint_cat)
+
         self.category_list = QListWidget()
-        cat_mgmt_lay.addWidget(self.category_list)
-        
+        cat_v.addWidget(self.category_list, 1)
+
         cat_btn_row = QHBoxLayout()
         self.btn_add_category = QPushButton("+ 添加类别")
         self.btn_rename_category = QPushButton("✏️ 重命名")
@@ -1147,41 +1363,29 @@ class SettingsDialog(QDialog):
         cat_btn_row.addWidget(self.btn_rename_category)
         cat_btn_row.addWidget(self.btn_del_category)
         cat_btn_row.addStretch()
-        cat_mgmt_lay.addLayout(cat_btn_row)
-        
-        cat_mgmt_section.setLayout(cat_mgmt_lay)
-        
-        # 管理类别区域放入独立滚动区域
-        cat_scroll = _NoWheelChainScrollArea()
-        cat_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        cat_scroll.setBackgroundRole(QPalette.ColorRole.Window)
-        cat_scroll.setAutoFillBackground(True)
-        cat_scroll.setWidgetResizable(True)
-        cat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        cat_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        cat_scroll.setWidget(cat_mgmt_section)
-        
-        # ===== 底部：恢复默认按钮 =====
+        cat_v.addLayout(cat_btn_row)
+
+        cat_scroll.setWidget(cat_inner)
+        sec_cat.body_layout().addWidget(cat_scroll, 1)
+
         btn_row = QHBoxLayout()
-        
         self.btn_restore_values = QPushButton("恢复默认数值")
         self.btn_restore_values.setToolTip("将触发概率、显示时长、冷却时间等恢复为默认，不删除你添加的类别。")
         self.btn_restore_values.setStyleSheet("QPushButton { padding: 8px; font-weight: bold; }")
         self.btn_restore_values.clicked.connect(self._restore_rules_values)
         btn_row.addWidget(self.btn_restore_values)
-        
+
         self.btn_reset_categories = QPushButton("⚠️ 重置类别（删除自定义）")
         self.btn_reset_categories.setStyleSheet("QPushButton { padding: 8px; font-weight: bold; color: #f44336; }")
         self.btn_reset_categories.clicked.connect(self._reset_categories)
         btn_row.addWidget(self.btn_reset_categories)
-        
-        # ===== 总布局：全局参数 + 两个滚动块 + 底部按钮 =====
+
         outer = QVBoxLayout()
-        outer.addLayout(top_lay)       # 顶部全局参数，不滚动
-        outer.addWidget(cd_scroll, 1)  # 中部：各类别冷却，可滚动
-        outer.addWidget(cat_scroll, 1) # 下部：管理类别，可滚动
-        outer.addLayout(btn_row)       # 按钮固定底部
-        
+        outer.addLayout(top_lay)
+        outer.addWidget(sec_cd, 1)
+        outer.addWidget(sec_cat, 1)
+        outer.addLayout(btn_row)
+
         self._rules_body_host.setLayout(outer)
 
 
@@ -1578,12 +1782,10 @@ class SettingsDialog(QDialog):
 
     def _restore_pet_defaults(self):
         # Restore only pet_settings.json (Behavior + Reminders). Does NOT touch bubbles/app_map/text_pool.
-        reply = QMessageBox.question(
+        reply = _mb_question(
             self,
             "确认恢复",
             "将恢复本页设置（移动速度、睡眠、喝水/运动提醒等），仅影响 pet_settings.json，不会改动文案池与应用映射。\n\n是否继续？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -1627,16 +1829,14 @@ class SettingsDialog(QDialog):
         except Exception:
             pass
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: QMessageBox.information(self, "已恢复", "已恢复默认设置（仅行为与提醒相关，未改动文案与应用映射）"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "已恢复默认设置（仅行为与提醒相关，未改动文案与应用映射）"))
 
     def _restore_rules_values(self):
         """恢复Rules标签页默认数值（不删除用户类别）"""
         from PyQt6.QtCore import QTimer
         
-        reply = QMessageBox.question(self, "确认恢复", 
-            "确定要恢复规则默认数值吗？\n\n将恢复：\n- 触发概率\n- 显示时长\n- 冷却时间\n等所有规则参数\n\n（不会删除用户添加的类别）",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No)
+        reply = _mb_question(self, "确认恢复",
+            "确定要恢复规则默认数值吗？\n\n将恢复：\n- 触发概率\n- 显示时长\n- 冷却时间\n等所有规则参数\n\n（不会删除用户添加的类别）")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -1656,16 +1856,14 @@ class SettingsDialog(QDialog):
         for cat, sp in self.cooldowns.items():
             sp.setValue(cooldown_defaults.get(cat, 600))
         
-        QTimer.singleShot(0, lambda: QMessageBox.information(self, "已恢复", "规则数值已恢复为默认设置"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "规则数值已恢复为默认设置"))
 
     def _reset_categories(self):
         """重置类别：删除用户自定义类别，恢复为系统默认"""
         from PyQt6.QtCore import QTimer
         
-        reply = QMessageBox.question(self, "确认重置类别",
-            "确定要重置类别吗？\n\n这将会：\n✓ 删除所有用户添加的类别\n✓ 删除这些类别的所有文案\n✓ 删除这些类别的应用映射\n✓ 恢复为系统默认 8 个类别\n\n此操作不可撤销！",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No)
+        reply = _mb_question(self, "确认重置类别",
+            "确定要重置类别吗？\n\n这将会：\n✓ 删除所有用户添加的类别\n✓ 删除这些类别的所有文案\n✓ 删除这些类别的应用映射\n✓ 恢复为系统默认 8 个类别\n\n此操作不可撤销！")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -1678,7 +1876,7 @@ class SettingsDialog(QDialog):
         to_delete = [cat for cat in CATEGORIES if cat not in default_categories]
         
         if not to_delete:
-            QMessageBox.information(self, "无需重置", "当前没有用户自定义类别")
+            _mb_information(self, "无需重置", "当前没有用户自定义类别")
             return
         
         # 删除相关数据
@@ -1712,17 +1910,15 @@ class SettingsDialog(QDialog):
         self._rebuild_rules_tab()
         self._refresh_all_category_dropdowns()  # 刷新其他标签页的下拉框
         
-        QTimer.singleShot(0, lambda: QMessageBox.information(self, "已重置", f"已删除 {len(to_delete)} 个用户类别，恢复为默认"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已重置", f"已删除 {len(to_delete)} 个用户类别，恢复为默认"))
 
 
     def _restore_text_pool_defaults(self):
         """恢复Text Pool默认设置（清除隐藏的预设）"""
         from PyQt6.QtCore import QTimer
         
-        reply = QMessageBox.question(self, "确认恢复", 
-            "确定要恢复文案池默认设置吗？\n\n将会：\n- 恢复所有被删除的预设文案\n- 保留用户添加的自定义文案",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No)
+        reply = _mb_question(self, "确认恢复",
+            "确定要恢复文案池默认设置吗？\n\n将会：\n- 恢复所有被删除的预设文案\n- 保留用户添加的自定义文案")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -1735,7 +1931,7 @@ class SettingsDialog(QDialog):
         cat = self.cb_text_cat.currentText()
         self._load_text_cat(cat)
         
-        QTimer.singleShot(0, lambda: QMessageBox.information(self, "已恢复", "文案池已恢复默认设置\n所有预设文案已找回"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "文案池已恢复默认设置\n所有预设文案已找回"))
 
     def _show_toast(self, text: str, duration_ms: int = 2500):
         """Non-blocking toast notification near the Apply button."""
@@ -1969,7 +2165,7 @@ class SettingsDialog(QDialog):
 
         if not exe_norm:
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(0, lambda: QMessageBox.warning(self, "提示", "请填写「exe 包含」。"))
+            QTimer.singleShot(0, lambda: _mb_warning(self, "提示", "请填写「exe 包含」。"))
             return
 
         self._mark_dirty()
@@ -2130,11 +2326,11 @@ class SettingsDialog(QDialog):
         """将选中的应用添加到过滤器"""
         # 网站规则不支持 Block，避免误操作
         if getattr(self, "_mapping_mode", "app") != "app":
-            QMessageBox.information(self, "提示", "网站规则暂不支持在此屏蔽，请在过滤器或网站设置中调整。")
+            _mb_information(self, "提示", "网站规则暂不支持在此屏蔽，请在过滤器或网站设置中调整。")
             return
         cur = self.list_apps.currentItem()
         if not cur:
-            QMessageBox.information(self, "未选中", "请先选择要屏蔽的应用")
+            _mb_information(self, "未选中", "请先选择要屏蔽的应用")
             return
         
         idx = cur.data(Qt.ItemDataRole.UserRole)
@@ -2146,7 +2342,7 @@ class SettingsDialog(QDialog):
         exe = rule.get("match", {}).get("exe_contains", "")
         
         if not exe:
-            QMessageBox.warning(self, "无法屏蔽", "无法获取应用的 exe 名称")
+            _mb_warning(self, "无法屏蔽", "无法获取应用的 exe 名称")
             return
 
         self._mark_dirty()
@@ -2156,7 +2352,7 @@ class SettingsDialog(QDialog):
         
         # 检查是否已存在
         if exe_lower in [x.lower() for x in ignored_exe]:
-            QMessageBox.information(self, "已存在", f"{exe} 已在过滤器中")
+            _mb_information(self, "已存在", f"{exe} 已在过滤器中")
             return
         
         # 添加
@@ -2167,7 +2363,7 @@ class SettingsDialog(QDialog):
             _save_json(self.filters_path, self.filters)
             logger.info(f"将 {exe} 添加到过滤器")
         except Exception as e:
-            QMessageBox.warning(self, "保存失败", f"无法保存过滤器配置：{e}")
+            _mb_warning(self, "保存失败", f"无法保存过滤器配置：{e}")
             return
         
         # 从appmap中移除
@@ -2194,7 +2390,7 @@ class SettingsDialog(QDialog):
             pass
         
         # 提示用户
-        QMessageBox.information(self, "已屏蔽", 
+        _mb_information(self, "已屏蔽", 
             f"已将 {exe} 添加到过滤器\n\n"
             f"下次一键抓取时将自动忽略此应用\n"
             f"您可以在「过滤器」标签页管理所有过滤规则")
@@ -2334,11 +2530,11 @@ class SettingsDialog(QDialog):
         
         from PyQt6.QtCore import QTimer
         if added_count == 0:
-            QTimer.singleShot(0, lambda: QMessageBox.information(self, "抓取完成", "未检测到新应用。\n\n请先打开要识别的应用并让其处于前台，再点「自动抓取应用」试一次。"))
+            QTimer.singleShot(0, lambda: _mb_information(self, "抓取完成", "未检测到新应用。\n\n请先打开要识别的应用并让其处于前台，再点「自动抓取应用」试一次。"))
         else:
             msg = f"✅ 已抓取 {added_count} 个新应用\n\n"
             msg += "💡 提示：浏览器里的网站（B站、ChatGPT 等）无法自动抓取，请点击「+ 添加网站」手动添加。"
-            QTimer.singleShot(0, lambda: QMessageBox.information(self, "抓取完成", msg))
+            QTimer.singleShot(0, lambda: _mb_information(self, "抓取完成", msg))
 
 
     def _get_default_category_pool(self, cat: str):
@@ -2508,18 +2704,16 @@ class SettingsDialog(QDialog):
     
     def _add_app_specific_text(self):
         """添加应用专属文案"""
-        from PyQt6.QtWidgets import QInputDialog
-        
         app_name = self.cb_app_for_text.currentData()
         if not app_name:
             text = self.cb_app_for_text.currentText()
             if not text:
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: QMessageBox.warning(self, "提示", "请先选择一个对象"))
+                QTimer.singleShot(0, lambda: _mb_warning(self, "提示", "请先选择一个对象"))
                 return
             app_name = self._parse_app_name_from_display(text)
         
-        text, ok = QInputDialog.getText(self, "添加专属文案", f"为 {app_name} 添加文案:")
+        text, ok = _input_get_text(self, "添加专属文案", f"为 {app_name} 添加文案:")
         if ok and text.strip():
             self._mark_dirty()
             app_specific = self.bubbles.setdefault("app_specific", {})
@@ -2585,11 +2779,12 @@ class SettingsDialog(QDialog):
         dialog = QDialog(self)
         dialog.setWindowTitle("添加网站识别")
         dialog.setMinimumWidth(500)
-        
+        apply_aux_dialog_theme(dialog)
+
         lay = QVBoxLayout()
-        
+
         tip = QLabel("在浏览器打开目标网页后，点击下方按钮自动识别；无需切换窗口。")
-        tip.setStyleSheet("color: gray; font-size: 12px;")
+        tip.setStyleSheet("color: #64748b; font-size: 12px;")
         tip.setToolTip("先打开要添加的网站，再点「检测浏览器窗口」；会从最近访问的窗口自动识别。")
         lay.addWidget(tip)
         
@@ -2603,17 +2798,17 @@ class SettingsDialog(QDialog):
         result_lay = QVBoxLayout()
         
         label_browser = QLabel("浏览器：未检测")
-        label_browser.setStyleSheet("color: gray;")
+        label_browser.setStyleSheet("color: #64748b;")
         result_lay.addWidget(label_browser)
-        
+
         label_title = QLabel("窗口标题：未检测")
-        label_title.setStyleSheet("color: gray;")
+        label_title.setStyleSheet("color: #64748b;")
         label_title.setWordWrap(True)
         label_title.setWordWrap(True)
         result_lay.addWidget(label_title)
         
         label_suggest = QLabel("建议关键词：未检测")
-        label_suggest.setStyleSheet("color: gray;")
+        label_suggest.setStyleSheet("color: #64748b;")
         result_lay.addWidget(label_suggest)
         
         result_group.setLayout(result_lay)
@@ -2640,9 +2835,10 @@ class SettingsDialog(QDialog):
         categories = ["browse", "video", "ai", "chat", "code", "office", "music", "gamehub"]
         cb_category.addItems(categories)
         form.addRow("分类:", cb_category)
-        
+
         lay.addLayout(form)
-        
+        _polish_combo_popup(cb_category)
+
         # 检测按钮功能
         def detect_window():
             """智能检测：从最近窗口找浏览器（无需切换窗口）"""
@@ -2692,7 +2888,7 @@ class SettingsDialog(QDialog):
                 # 检查结果
                 if not detected_browser or not detected_title:
                     from PyQt6.QtCore import QTimer
-                    QTimer.singleShot(0, lambda: QMessageBox.warning(dialog, "检测失败", 
+                    QTimer.singleShot(0, lambda: _mb_warning(dialog, "检测失败", 
                         "未检测到浏览器窗口\n\n"
                         "💡 请确保：\n"
                         "1. 已在浏览器打开目标网站\n"
@@ -2708,7 +2904,7 @@ class SettingsDialog(QDialog):
                 label_browser.setStyleSheet("color: green; font-weight: bold;")
                 
                 label_title.setText(f"窗口标题：{detected_title}")
-                label_title.setStyleSheet("color: black;")
+                label_title.setStyleSheet("color: #111827;")
                 
                 # 智能提取关键词
                 keywords = extract_keywords(detected_title)
@@ -2729,7 +2925,7 @@ class SettingsDialog(QDialog):
                 
             except Exception as e:
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: QMessageBox.warning(dialog, "错误", f"检测失败: {e}"))
+                QTimer.singleShot(0, lambda: _mb_warning(dialog, "错误", f"检测失败: {e}"))
         
         def extract_keywords(title):
             """从标题智能提取关键词"""
@@ -2786,7 +2982,7 @@ class SettingsDialog(QDialog):
             
             if not name or not keywords_text:
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: QMessageBox.warning(dialog, "错误", "请填写网站名称和关键词"))
+                QTimer.singleShot(0, lambda: _mb_warning(dialog, "错误", "请填写网站名称和关键词"))
                 return
             
             # 添加到browser_title_rules
@@ -2817,7 +3013,7 @@ class SettingsDialog(QDialog):
             
             dialog.accept()
             from PyQt6.QtCore import QTimer
-            QTimer.singleShot(0, lambda: QMessageBox.information(self, "成功", f"✅ 已添加网站: {name}\n\n现在可以给它添加专属文案了！"))
+            QTimer.singleShot(0, lambda: _mb_information(self, "成功", f"✅ 已添加网站: {name}\n\n现在可以给它添加专属文案了！"))
         
         btn_ok.clicked.connect(save_website)
         btn_cancel.clicked.connect(dialog.reject)
@@ -2843,12 +3039,11 @@ class SettingsDialog(QDialog):
         old_text = item.text().replace(" (来自预设)", "").replace(" (用户添加)", "")
         
         # 弹窗输入
-        new_text, ok = QInputDialog.getText(
-            self, 
-            "编辑文案", 
+        new_text, ok = _input_get_text(
+            self,
+            "编辑文案",
             "请输入新的文案内容：",
-            QLineEdit.EchoMode.Normal,
-            old_text
+            old_text,
         )
         
         if not ok or not new_text.strip():
@@ -2899,12 +3094,11 @@ class SettingsDialog(QDialog):
         old_text = item.text()
         
         # 弹窗输入
-        new_text, ok = QInputDialog.getText(
-            self, 
-            "编辑闲聊文案", 
+        new_text, ok = _input_get_text(
+            self,
+            "编辑闲聊文案",
             "请输入新的文案内容：",
-            QLineEdit.EchoMode.Normal,
-            old_text
+            old_text,
         )
         
         if not ok or not new_text.strip():
@@ -2934,12 +3128,11 @@ class SettingsDialog(QDialog):
         old_text = item.text().replace(" (来自预设)", "").replace(" (用户添加)", "")
         
         # 弹窗输入
-        new_text, ok = QInputDialog.getText(
-            self, 
-            "编辑专属文案", 
+        new_text, ok = _input_get_text(
+            self,
+            "编辑专属文案",
             "请输入新的文案内容：",
-            QLineEdit.EchoMode.Normal,
-            old_text
+            old_text,
         )
         
         if not ok or not new_text.strip():
@@ -3045,7 +3238,7 @@ class SettingsDialog(QDialog):
             self.idle_chat_list.addItem(text)
 
     def _add_idle_chat(self):
-        text, ok = QInputDialog.getText(self, "添加待机闲聊", "闲聊文案:")
+        text, ok = _input_get_text(self, "添加待机闲聊", "闲聊文案:")
         if ok and text.strip():
             self._mark_dirty()
             self.idle_chat_list.addItem(text.strip())
@@ -3356,13 +3549,13 @@ class SettingsDialog(QDialog):
             self.ai_preset_combo.blockSignals(False)
 
     def _add_prompt_preset(self):
-        name, ok = QInputDialog.getText(self, "新建预设", "预设名称：")
+        name, ok = _input_get_text(self, "新建预设", "预设名称：")
         if not ok or not (name or "").strip():
             return
         name = name.strip()
         prompt = (self.ai_system_prompt.toPlainText() or "").strip()
         if not prompt:
-            QMessageBox.warning(self, "提示", "Prompt 为空，无法保存。")
+            _mb_warning(self, "提示", "Prompt 为空，无法保存。")
             return
         presets = load_prompt_presets()
         for p in presets:
@@ -3382,7 +3575,7 @@ class SettingsDialog(QDialog):
         if idx < 0 or idx >= len(presets):
             return
         name = presets[idx].get("name", "")
-        if QMessageBox.question(self, "删除预设", f"确定删除「{name}」？") != QMessageBox.StandardButton.Yes:
+        if _mb_question(self, "删除预设", f"确定删除「{name}」？") != QMessageBox.StandardButton.Yes:
             return
         del presets[idx]
         if not presets:
@@ -3415,9 +3608,9 @@ class SettingsDialog(QDialog):
             self.btn_fetch_models.setEnabled(True)
             self.btn_fetch_models.setText("获取模型")
             if not models:
-                QMessageBox.information(self, "提示", "返回的模型列表为空。")
+                _mb_information(self, "提示", "返回的模型列表为空。")
                 return
-            model, ok = QInputDialog.getItem(self, "选择模型", "可用模型：", models, 0, False)
+            model, ok = _input_get_item(self, "选择模型", "可用模型：", models, 0, False)
             if ok and model:
                 self.ai_model.setText(model)
             worker.deleteLater()
@@ -3425,7 +3618,7 @@ class SettingsDialog(QDialog):
         def _on_err(msg):
             self.btn_fetch_models.setEnabled(True)
             self.btn_fetch_models.setText("获取模型")
-            QMessageBox.warning(self, "获取失败", msg)
+            _mb_warning(self, "获取失败", msg)
             worker.deleteLater()
 
         worker.finished.connect(_on_done)
@@ -3442,13 +3635,13 @@ class SettingsDialog(QDialog):
         def _on_done(text):
             self.btn_test_ai.setEnabled(True)
             self.btn_test_ai.setText("测试连接")
-            QMessageBox.information(self, "✅ 测试成功", f"模型可用，回复：\n{text[:150]}")
+            _mb_information(self, "✅ 测试成功", f"模型可用，回复：\n{text[:150]}")
             worker.deleteLater()
 
         def _on_err(msg):
             self.btn_test_ai.setEnabled(True)
             self.btn_test_ai.setText("测试连接")
-            QMessageBox.warning(self, "❌ 测试失败", msg)
+            _mb_warning(self, "❌ 测试失败", msg)
             worker.deleteLater()
 
         worker.finished.connect(_on_done)
@@ -3477,7 +3670,7 @@ class SettingsDialog(QDialog):
         return s
 
     def _add_filter_exe(self):
-        text, ok = QInputDialog.getText(self, "添加屏蔽进程", "进程名（如 chrome.exe）:")
+        text, ok = _input_get_text(self, "添加屏蔽进程", "进程名（如 chrome.exe）:")
         if ok and text.strip():
             self._mark_dirty()
             self.filter_exe_list.addItem(text.strip())
@@ -3510,7 +3703,7 @@ class SettingsDialog(QDialog):
                 pass
 
     def _add_filter_title(self):
-        text, ok = QInputDialog.getText(self, "添加屏蔽标题关键词", "关键词:")
+        text, ok = _input_get_text(self, "添加屏蔽标题关键词", "关键词:")
         if ok and text.strip():
             self._mark_dirty()
             self.filter_title_list.addItem(text.strip())
@@ -3596,7 +3789,7 @@ class SettingsDialog(QDialog):
 
     def _add_category(self):
         """添加新类别"""
-        text, ok = QInputDialog.getText(self, "添加类别", "类别名称（如 design）：")
+        text, ok = _input_get_text(self, "添加类别", "类别名称（如 design）：")
         if not ok or not text.strip():
             return
         
@@ -3604,7 +3797,7 @@ class SettingsDialog(QDialog):
         
         # 检查是否已存在
         if new_cat in CATEGORIES:
-            QMessageBox.warning(self, "重复", f"类别 {new_cat} 已存在！")
+            _mb_warning(self, "重复", f"类别 {new_cat} 已存在！")
             return
 
         self._mark_dirty()
@@ -3623,17 +3816,17 @@ class SettingsDialog(QDialog):
         self._rebuild_rules_tab()
         self._refresh_all_category_dropdowns()  # 刷新其他标签页的下拉框
         
-        QMessageBox.information(self, "成功", f"类别 {new_cat} 已添加，默认冷却600秒")
+        _mb_information(self, "成功", f"类别 {new_cat} 已添加，默认冷却600秒")
 
     def _rename_category(self):
         """重命名类别"""
         current_item = self.category_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "未选择", "请先选择要重命名的类别")
+            _mb_warning(self, "未选择", "请先选择要重命名的类别")
             return
         
         old_cat = current_item.text()
-        new_cat, ok = QInputDialog.getText(self, "重命名类别", f"新名称（当前: {old_cat}）:", text=old_cat)
+        new_cat, ok = _input_get_text(self, "重命名类别", f"新名称（当前: {old_cat}）:", old_cat)
         
         if not ok or not new_cat.strip() or new_cat.strip() == old_cat:
             return
@@ -3642,7 +3835,7 @@ class SettingsDialog(QDialog):
         
         # 检查新名称是否已存在
         if new_cat in CATEGORIES and new_cat != old_cat:
-            QMessageBox.warning(self, "重复", f"类别 {new_cat} 已存在！")
+            _mb_warning(self, "重复", f"类别 {new_cat} 已存在！")
             return
 
         self._mark_dirty()
@@ -3674,22 +3867,20 @@ class SettingsDialog(QDialog):
         self._rebuild_rules_tab()
         self._refresh_all_category_dropdowns()  # 刷新其他标签页的下拉框
         
-        QMessageBox.information(self, "成功", f"类别已重命名: {old_cat} → {new_cat}")
+        _mb_information(self, "成功", f"类别已重命名: {old_cat} → {new_cat}")
 
     def _delete_category(self):
         """删除类别"""
         current_item = self.category_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "未选择", "请先选择要删除的类别")
+            _mb_warning(self, "未选择", "请先选择要删除的类别")
             return
         
         cat = current_item.text()
         
         # 确认删除
-        reply = QMessageBox.question(self, "确认删除", 
-            f"确定要删除类别 {cat} 吗？\n\n将同时删除该类别的冷却时间设置。",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No)
+        reply = _mb_question(self, "确认删除",
+            f"确定要删除类别 {cat} 吗？\n\n将同时删除该类别的冷却时间设置。")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -3713,7 +3904,7 @@ class SettingsDialog(QDialog):
         self._rebuild_rules_tab()
         self._refresh_all_category_dropdowns()  # 刷新其他标签页的下拉框
         
-        QMessageBox.information(self, "成功", f"类别 {cat} 已删除")
+        _mb_information(self, "成功", f"类别 {cat} 已删除")
 
     def _rebuild_rules_tab(self):
         """重建Rules标签页（类别变化后需要重建UI）"""
