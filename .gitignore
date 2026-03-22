@@ -11,3 +11,6 @@ dist/
 v1.0/
 pet_core_backup.py
 *.txt
+!README.txt
+!LOG_GUIDE.txt
+!ui_preview.txt
