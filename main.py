@@ -33,9 +33,10 @@ def _init_app_appearance(app: QApplication) -> None:
             background-color: #ffffff;
             color: #334155;
             border: 1px solid #dbe4f0;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 12px;
+            padding: 3px 8px;
+            margin: 0px;
+            border-radius: 6px;
+            font-size: 11px;
             font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
         }
         """
