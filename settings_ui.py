@@ -7,10 +7,10 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QPushButton, QFormLayout, QListWidget, QListWidgetItem,
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
-    QSizePolicy,
+    QSizePolicy, QStyleFactory,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtGui import QColor, QIcon, QPalette
 from logger import logger
 from ai_config import (
     AISettings, load_ai_settings, save_ai_settings,
@@ -152,17 +152,54 @@ def _normalize_appmap(appmap):
     return {"version": 1, "apps": []}
 
 
+def _settings_light_palette() -> QPalette:
+    """强制浅色调色板，避免 Win10/11 深色模式下系统调色板与 QSS 文字色冲突。"""
+    p = QPalette()
+    win = QColor("#f5f7fb")
+    base = QColor("#ffffff")
+    text = QColor("#111827")
+    muted = QColor("#6b7280")
+    p.setColor(QPalette.ColorRole.Window, win)
+    p.setColor(QPalette.ColorRole.WindowText, text)
+    p.setColor(QPalette.ColorRole.Base, base)
+    p.setColor(QPalette.ColorRole.AlternateBase, QColor("#f3f6fb"))
+    p.setColor(QPalette.ColorRole.Text, text)
+    p.setColor(QPalette.ColorRole.Button, base)
+    p.setColor(QPalette.ColorRole.ButtonText, text)
+    p.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.Highlight, QColor("#2f6fed"))
+    p.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    p.setColor(QPalette.ColorRole.PlaceholderText, muted)
+    p.setColor(QPalette.ColorRole.ToolTipBase, base)
+    p.setColor(QPalette.ColorRole.ToolTipText, text)
+    p.setColor(QPalette.ColorRole.Mid, QColor("#dbe4f0"))
+    p.setColor(QPalette.ColorRole.Dark, QColor("#94a3b8"))
+    p.setColor(QPalette.ColorRole.Shadow, QColor("#cbd5e1"))
+    p.setColor(QPalette.ColorRole.Light, QColor("#ffffff"))
+    return p
+
+
 def _settings_stylesheet() -> str:
     """与桌宠控制台一致的浅色圆角风格，并补充设置窗专用控件。"""
     return """
         QDialog#SettingsDialog {
             background: #f5f7fb;
         }
+        /* 防止深色系统主题从父级透出到未单独设底的区域 */
+        QDialog#SettingsDialog QWidget {
+            color: #1f2937;
+        }
         QTabWidget::pane {
             border: 1px solid #dbe4f0;
             border-radius: 10px;
             background: #ffffff;
             top: -1px;
+        }
+        QTabWidget > QWidget {
+            background: #ffffff;
+        }
+        QTabBar {
+            background: #eef2f9;
         }
         QTabBar::tab {
             background: #eef2f9;
@@ -202,13 +239,33 @@ def _settings_stylesheet() -> str:
         QListWidget#SettingsSideNav::item:hover:!selected {
             background: #f3f6fb;
         }
+        QSplitter {
+            background: #ffffff;
+        }
         QSplitter::handle {
             background: #e8eef7;
             width: 2px;
         }
+        QStackedWidget {
+            background: #ffffff;
+        }
+        QAbstractScrollArea {
+            background-color: #f5f7fb;
+            border: none;
+        }
+        QScrollArea {
+            background-color: #f5f7fb;
+        }
+        QScrollArea > QWidget > QWidget {
+            background-color: #ffffff;
+        }
+        QWidget#qt_scrollarea_viewport {
+            background-color: #ffffff;
+        }
         QLabel {
             color: #1f2937;
             font-size: 12px;
+            background: transparent;
         }
         QGroupBox {
             font-weight: 700;
@@ -275,6 +332,7 @@ def _settings_stylesheet() -> str:
         QCheckBox {
             spacing: 6px;
             color: #1f2937;
+            background: transparent;
         }
         QCheckBox::indicator {
             width: 16px;
@@ -290,9 +348,8 @@ def _settings_stylesheet() -> str:
             border-radius: 4px;
             background: #2f6fed;
         }
-        QScrollArea {
-            border: none;
-            background: transparent;
+        QProgressDialog {
+            background: #ffffff;
         }
     """
 
@@ -300,6 +357,16 @@ def _settings_stylesheet() -> str:
 class SettingsDialog(QDialog):
     def _apply_settings_theme(self):
         self.setObjectName("SettingsDialog")
+        # Fusion + 浅色调色板：在 Windows 深色模式下仍保持可读的自包含浅色界面
+        try:
+            fusion = QStyleFactory.create("Fusion")
+            if fusion is not None:
+                self.setStyle(fusion)
+        except Exception:
+            pass
+        self.setPalette(_settings_light_palette())
+        self.setAutoFillBackground(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(_settings_stylesheet())
 
     def _scroll_wrap(self, inner: QWidget) -> QScrollArea:
