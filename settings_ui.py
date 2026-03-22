@@ -181,6 +181,18 @@ def _settings_light_palette() -> QPalette:
     return p
 
 
+def _force_global_tooltip_palette():
+    """Fusion 下 QToolTip 读 QApplication palette；dark-mode 系统可能覆盖，这里强制刷一次。"""
+    app = QApplication.instance()
+    if app is None:
+        return
+    pal = app.palette()
+    for grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+        pal.setColor(grp, QPalette.ColorRole.ToolTipBase, QColor("#0f172a"))
+        pal.setColor(grp, QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
+    app.setPalette(pal)
+
+
 def _settings_stylesheet() -> str:
     """与桌宠控制台一致的浅色圆角风格，并补充设置窗专用控件。"""
     return """
@@ -1082,13 +1094,13 @@ class _SettingsComboBox(QComboBox):
 class SettingsDialog(QDialog):
     def _apply_settings_theme(self):
         self.setObjectName("SettingsDialog")
-        # 仅设置窗使用 Fusion，避免 WindowsVista/Fluent 在深色系统下与 QSS 混用导致「深底深字」
         fusion = QStyleFactory.create("Fusion")
         if fusion is not None:
             self.setStyle(fusion)
         self.setPalette(_settings_light_palette())
         self.setAutoFillBackground(True)
         self.setStyleSheet(_settings_stylesheet())
+        _force_global_tooltip_palette()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -2194,6 +2206,10 @@ class SettingsDialog(QDialog):
             if hasattr(self, "ai_preset_combo"):
                 self._populate_preset_combo()
             if hasattr(self, "ai_system_prompt"):
+                saved_prompt = (s.system_prompt or "").strip()
+                presets = load_prompt_presets()
+                is_preset = any(p.get("prompt", "").strip() == saved_prompt for p in presets)
+                self._custom_prompt_saved = "" if is_preset else saved_prompt
                 self.ai_system_prompt.setPlainText(s.system_prompt or "")
             if hasattr(self, "ai_min_reply"):
                 self.ai_min_reply.setValue(int(getattr(s, "reply_min_length", 20)))
@@ -3987,6 +4003,11 @@ class SettingsDialog(QDialog):
             self.ai_system_prompt.blockSignals(True)
             self.ai_system_prompt.setPlainText(presets[idx].get("prompt", ""))
             self.ai_system_prompt.blockSignals(False)
+        else:
+            saved = getattr(self, "_custom_prompt_saved", "")
+            self.ai_system_prompt.blockSignals(True)
+            self.ai_system_prompt.setPlainText(saved)
+            self.ai_system_prompt.blockSignals(False)
 
     def _on_prompt_text_edited(self):
         if getattr(self, "_ai_loading", False):
@@ -4002,6 +4023,7 @@ class SettingsDialog(QDialog):
                 matched = True
                 break
         if not matched:
+            self._custom_prompt_saved = current_text
             self.ai_preset_combo.blockSignals(True)
             self.ai_preset_combo.setCurrentIndex(self.ai_preset_combo.count() - 1)
             self.ai_preset_combo.blockSignals(False)
