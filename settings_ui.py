@@ -6,7 +6,8 @@ from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QLabel, QCheckBox,
     QDoubleSpinBox, QSpinBox, QPushButton, QFormLayout, QListWidget, QListWidgetItem,
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
-    QProgressDialog, QApplication, QScrollArea, QGridLayout
+    QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QIcon
@@ -150,13 +151,202 @@ def _normalize_appmap(appmap):
     # Unknown shape
     return {"version": 1, "apps": []}
 
+
+def _settings_stylesheet() -> str:
+    """与桌宠控制台一致的浅色圆角风格，并补充设置窗专用控件。"""
+    return """
+        QDialog#SettingsDialog {
+            background: #f5f7fb;
+        }
+        QTabWidget::pane {
+            border: 1px solid #dbe4f0;
+            border-radius: 10px;
+            background: #ffffff;
+            top: -1px;
+        }
+        QTabBar::tab {
+            background: #eef2f9;
+            color: #334155;
+            border: 1px solid #dbe4f0;
+            border-bottom: none;
+            border-top-left-radius: 9px;
+            border-top-right-radius: 9px;
+            padding: 10px 18px;
+            margin-right: 4px;
+            font-weight: 600;
+        }
+        QTabBar::tab:selected {
+            background: #ffffff;
+            color: #1d4ed8;
+            border-bottom: 1px solid #ffffff;
+        }
+        QTabBar::tab:hover:!selected {
+            background: #e8f0fe;
+        }
+        QListWidget#SettingsSideNav {
+            background: #ffffff;
+            border: none;
+            border-right: 1px solid #e8eef7;
+            outline: none;
+            padding: 6px 0;
+        }
+        QListWidget#SettingsSideNav::item {
+            padding: 12px 14px;
+            border-radius: 0px;
+        }
+        QListWidget#SettingsSideNav::item:selected {
+            background: #e8f1ff;
+            color: #1d4ed8;
+            font-weight: 700;
+        }
+        QListWidget#SettingsSideNav::item:hover:!selected {
+            background: #f3f6fb;
+        }
+        QSplitter::handle {
+            background: #e8eef7;
+            width: 2px;
+        }
+        QLabel {
+            color: #1f2937;
+            font-size: 12px;
+        }
+        QGroupBox {
+            font-weight: 700;
+            color: #1f2937;
+            border: 1px solid #dbe4f0;
+            border-radius: 10px;
+            margin-top: 12px;
+            padding: 12px 12px 8px 12px;
+            background: #ffffff;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 10px;
+            padding: 0 6px;
+            background: #ffffff;
+        }
+        QFrame#SettingsHighlightCard {
+            background: #eef5ff;
+            border: 1px solid #c7d9f8;
+            border-radius: 12px;
+        }
+        QPushButton {
+            background: #ffffff;
+            color: #1f2937;
+            border: 1px solid #dbe4f0;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            background: #f8fbff;
+            border: 1px solid #b8d0f2;
+        }
+        QPushButton:pressed {
+            background: #edf4ff;
+        }
+        QPushButton#qt_default_push_button, QPushButton:default {
+            background: #2f6fed;
+            color: white;
+            border: 1px solid #2f6fed;
+            font-weight: 700;
+        }
+        QPushButton#qt_default_push_button:hover, QPushButton:default:hover {
+            background: #255fce;
+        }
+        QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+            background: #ffffff;
+            border: 1px solid #d4deed;
+            border-radius: 8px;
+            padding: 6px 8px;
+            min-height: 22px;
+            color: #111827;
+        }
+        QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border: 1px solid #5b9cff;
+        }
+        QListWidget {
+            background: #ffffff;
+            border: 1px solid #dbe4f0;
+            border-radius: 10px;
+            outline: 0;
+        }
+        QCheckBox {
+            spacing: 6px;
+            color: #1f2937;
+        }
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+        }
+        QCheckBox::indicator:unchecked {
+            border: 1px solid #b8c5d9;
+            border-radius: 4px;
+            background: #ffffff;
+        }
+        QCheckBox::indicator:checked {
+            border: 1px solid #2f6fed;
+            border-radius: 4px;
+            background: #2f6fed;
+        }
+        QScrollArea {
+            border: none;
+            background: transparent;
+        }
+    """
+
+
 class SettingsDialog(QDialog):
+    def _apply_settings_theme(self):
+        self.setObjectName("SettingsDialog")
+        self.setStyleSheet(_settings_stylesheet())
+
+    def _scroll_wrap(self, inner: QWidget) -> QScrollArea:
+        sc = QScrollArea()
+        sc.setWidgetResizable(True)
+        sc.setFrameShape(QFrame.Shape.NoFrame)
+        sc.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        holder = QWidget()
+        lay = QVBoxLayout(holder)
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.addWidget(inner)
+        sc.setWidget(holder)
+        return sc
+
+    def _make_split_tab(self, labels: list, pages: list) -> QWidget:
+        container = QWidget()
+        outer = QVBoxLayout(container)
+        outer.setContentsMargins(0, 0, 0, 0)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        nav = QListWidget()
+        nav.setObjectName("SettingsSideNav")
+        nav.setFixedWidth(200)
+        nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        nav.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        for text in labels:
+            nav.addItem(QListWidgetItem(text))
+        stack = QStackedWidget()
+        for w in pages:
+            stack.addWidget(self._scroll_wrap(w))
+        nav.currentRowChanged.connect(stack.setCurrentIndex)
+        if nav.count() > 0:
+            nav.setCurrentRow(0)
+        splitter.addWidget(nav)
+        splitter.addWidget(stack)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setChildrenCollapsible(False)
+        outer.addWidget(splitter)
+        return container
+
     def __init__(self, pet):
         super().__init__()
         self.pet = pet
         self.setWindowTitle("桌宠设置")
-        self.setMinimumWidth(760)
-        
+        self.setMinimumWidth(820)
+        self.setMinimumHeight(520)
+        self._apply_settings_theme()
 
         # 设置窗口图标（使用和桌宠一样的图标）
         try:
@@ -184,29 +374,47 @@ class SettingsDialog(QDialog):
 
         self.pet_settings = _load_json(self.pet_settings_path, {'version': 1, 'behavior': {'move_speed': 1.5, 'ai_interval_ms': 2000, 'auto_walk_enabled': True, 'roam_radius_px': 0, 'edge_margin_px': 0, 'auto_fall_enabled': True}, 'sleep': {'enabled': True, 'idle_minutes': 15, 'adrenaline_minutes': 10}, 'reminders': {'water_enabled': True, 'water_interval_min': 30, 'move_enabled': True, 'move_interval_min': 45, 'active_start_h': 9, 'active_start_m': 0, 'active_end_h': 23, 'active_end_m': 30, 'notice_duration_ms': 3000, 'idle_chat_interval_min': 10}})
 
-        self.tabs = QTabWidget()
-        self.tab_basic = QWidget()
-        self.tab_behavior = QWidget()
+        # 各子页（内容区）；气泡规则页 composite 使用 tab_rules + _rules_body_host
+        self.page_pet_behavior = QWidget()
+        self.page_pet_sleep = QWidget()
+        self.page_pet_reminders = QWidget()
+        self.page_pet_help = QWidget()
         self.tab_rules = QWidget()
         self.tab_mapping = QWidget()
         self.tab_text = QWidget()
         self.tab_filters = QWidget()
-        self.tab_ai = QWidget()
+        self.page_ai_conn = QWidget()
+        self.page_ai_persona = QWidget()
+        self.page_ai_adv = QWidget()
 
-        self.tabs.addTab(self.tab_basic, "基础")
-        self.tabs.addTab(self.tab_behavior, "行为")
-        self.tabs.addTab(self.tab_rules, "规则")
-        self.tabs.addTab(self.tab_mapping, "应用映射")
-        self.tabs.addTab(self.tab_text, "文案池")
-        self.tabs.addTab(self.tab_filters, "过滤器")
-        self.tabs.addTab(self.tab_ai, "AI")
+        self.tab_pet = self._make_split_tab(
+            ["行为", "睡眠", "提醒", "安静与路径"],
+            [self.page_pet_behavior, self.page_pet_sleep, self.page_pet_reminders, self.page_pet_help],
+        )
+        self.tab_bubble = self._make_split_tab(
+            ["总开关 & 规则", "应用映射", "文案池", "过滤器"],
+            [self.tab_rules, self.tab_mapping, self.tab_text, self.tab_filters],
+        )
+        self.tab_ai = self._make_split_tab(
+            ["连接配置", "人设与回复", "高级选项"],
+            [self.page_ai_conn, self.page_ai_persona, self.page_ai_adv],
+        )
+
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.tab_pet, "🐾 桌宠设置")
+        self.tabs.addTab(self.tab_bubble, "💬 应用气泡")
+        self.tabs.addTab(self.tab_ai, "🤖 AI 功能")
 
         root = QVBoxLayout()
-        root.addWidget(self.tabs)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(10)
+        root.addWidget(self.tabs, 1)
 
         btn_row = QHBoxLayout()
         self.btn_save = QPushButton("保存并应用")
         self.btn_close = QPushButton("关闭")
+        self.btn_save.setDefault(True)
+        self.btn_save.setAutoDefault(True)
         self.btn_save.clicked.connect(self._save_apply)
         self.btn_close.clicked.connect(self.close)
         btn_row.addStretch(1)
@@ -216,6 +424,7 @@ class SettingsDialog(QDialog):
 
         self.setLayout(root)
 
+        self._build_bubble_rules_shell()
         self._build_basic()
         self._build_behavior()
         self._build_rules()
@@ -351,19 +560,33 @@ class SettingsDialog(QDialog):
             event.accept()
 
     # ---------- Build UI ----------
-    def _build_basic(self):
-        lay = QVBoxLayout()
-        self.cb_enabled = QCheckBox("应用检测气泡")
+    def _build_bubble_rules_shell(self):
+        """总开关 & 规则页：顶部高亮区 + 下方规则主体（主体由 _build_rules 填充）。"""
+        vl = QVBoxLayout(self.tab_rules)
+        vl.setContentsMargins(0, 0, 0, 0)
+        vl.setSpacing(12)
+        gate = QFrame()
+        gate.setObjectName("SettingsHighlightCard")
+        gl = QVBoxLayout(gate)
+        gl.setContentsMargins(14, 12, 14, 12)
+        gl.setSpacing(8)
+        self.cb_enabled = QCheckBox("启用应用检测气泡")
         self.cb_enabled.setToolTip("只控制“检测应用触发的文案气泡”，与 AI 对话无关。")
         self.cb_switch_only = QCheckBox("仅在切换前台应用时触发")
         self.cb_switch_only.setToolTip("只在前台应用发生变化时弹出气泡，同一应用内不会反复提醒。")
+        gl.addWidget(self.cb_enabled)
+        gl.addWidget(self.cb_switch_only)
+        vl.addWidget(gate)
+        self._rules_body_host = QWidget()
+        vl.addWidget(self._rules_body_host, 1)
+
+    def _build_basic(self):
+        """安静模式 + 帮助与路径（应用气泡总开关在「总开关 & 规则」页）。"""
+        lay = QVBoxLayout()
         self.cb_quiet = QCheckBox("安静模式（不冒泡、不提醒）")
         self.cb_quiet.setToolTip("开启后不弹活动气泡也不发喝水/动一动等提醒，拖拽、戳、摸头仍可用。")
-        lay.addWidget(self.cb_enabled)
-        lay.addWidget(self.cb_switch_only)
         lay.addWidget(self.cb_quiet)
         lay.addSpacing(16)
-        # 帮助与路径
         from config_utils import get_config_dir
         help_group = QGroupBox("帮助与路径")
         help_lay = QVBoxLayout()
@@ -379,7 +602,7 @@ class SettingsDialog(QDialog):
         help_group.setLayout(help_lay)
         lay.addWidget(help_group)
         lay.addStretch(1)
-        self.tab_basic.setLayout(lay)
+        self.page_pet_help.setLayout(lay)
 
     def _open_config_dir(self):
         """用系统资源管理器打开配置目录"""
@@ -401,12 +624,11 @@ class SettingsDialog(QDialog):
 
 
     def _build_behavior(self):
-        lay = QVBoxLayout()
-
-        # ---- Pet behavior ----
+        # ---- 行为页 ----
+        lay_b = QVBoxLayout()
         title1 = QLabel("桌宠行为")
-        title1.setStyleSheet("font-weight:600;")
-        lay.addWidget(title1)
+        title1.setStyleSheet("font-weight:600; font-size: 13px;")
+        lay_b.addWidget(title1)
 
         form_beh = QFormLayout()
 
@@ -443,13 +665,15 @@ class SettingsDialog(QDialog):
         self.cb_auto_fall.setChecked(True)
         form_beh.addRow(QLabel("自动掉落"), self.cb_auto_fall)
 
-        lay.addLayout(form_beh)
-        lay.addSpacing(10)
+        lay_b.addLayout(form_beh)
+        lay_b.addStretch(1)
+        self.page_pet_behavior.setLayout(lay_b)
 
-        # ---- Sleep ----
+        # ---- 睡眠页 ----
+        lay_s = QVBoxLayout()
         title_sleep = QLabel("睡眠")
-        title_sleep.setStyleSheet("font-weight:600;")
-        lay.addWidget(title_sleep)
+        title_sleep.setStyleSheet("font-weight:600; font-size: 13px;")
+        lay_s.addWidget(title_sleep)
 
         form_sleep = QFormLayout()
 
@@ -469,7 +693,6 @@ class SettingsDialog(QDialog):
         self.sp_adrenaline_min.setToolTip("启动后的一段时间内不会睡觉，方便你先操作。")
         form_sleep.addRow(QLabel("启动免睡期（分钟）"), self.sp_adrenaline_min)
 
-        # 手动控制睡眠状态（并入睡眠板块）
         row_dbg = QHBoxLayout()
         self.btn_force_sleep = QPushButton("强制睡觉")
         self.btn_force_sleep.setToolTip("立即让桌宠进入睡眠，不再走动。")
@@ -499,13 +722,15 @@ class SettingsDialog(QDialog):
         wdbg.setLayout(row_dbg)
         form_sleep.addRow(QLabel("手动控制"), wdbg)
 
-        lay.addLayout(form_sleep)
-        lay.addSpacing(10)
+        lay_s.addLayout(form_sleep)
+        lay_s.addStretch(1)
+        self.page_pet_sleep.setLayout(lay_s)
 
-        # ---- Reminders ----
+        # ---- 提醒页 ----
+        lay_r = QVBoxLayout()
         title2 = QLabel("生活提醒")
-        title2.setStyleSheet("font-weight:600;")
-        lay.addWidget(title2)
+        title2.setStyleSheet("font-weight:600; font-size: 13px;")
+        lay_r.addWidget(title2)
 
         form_rem = QFormLayout()
 
@@ -539,7 +764,6 @@ class SettingsDialog(QDialog):
         mwrap.setLayout(rowm)
         form_rem.addRow(QLabel("动一动提醒"), mwrap)
 
-        # active window
         self.sp_start_h = QSpinBox()
         self.sp_start_h.setRange(0, 23)
         self.sp_start_m = QSpinBox()
@@ -580,19 +804,18 @@ class SettingsDialog(QDialog):
         self.sp_idle_chat_interval.setToolTip("桌宠多久碎碎念一次（在你相对空闲时）。")
         form_rem.addRow(QLabel("待机闲聊间隔（分钟）"), self.sp_idle_chat_interval)
 
-        lay.addLayout(form_rem)
+        lay_r.addLayout(form_rem)
 
-        # ---- Restore defaults ----
         btn_row = QHBoxLayout()
         self.btn_restore_defaults = QPushButton("恢复默认设置")
         self.btn_restore_defaults.clicked.connect(self._restore_pet_defaults)
         btn_row.addStretch(1)
         btn_row.addWidget(self.btn_restore_defaults)
         btn_row.addStretch(1)
-        lay.addLayout(btn_row)
+        lay_r.addLayout(btn_row)
 
-        lay.addStretch(1)
-        self.tab_behavior.setLayout(lay)
+        lay_r.addStretch(1)
+        self.page_pet_reminders.setLayout(lay_r)
 
     def _build_rules(self):
         # ===== 上半部分：数值设置 + 各类别冷却（可滚动） =====
@@ -741,7 +964,7 @@ class SettingsDialog(QDialog):
         outer.addWidget(cat_scroll, 1) # 下部：管理类别，可滚动
         outer.addLayout(btn_row)       # 按钮固定底部
         
-        self.tab_rules.setLayout(outer)
+        self._rules_body_host.setLayout(outer)
 
 
     def _build_mapping(self):
@@ -831,10 +1054,10 @@ class SettingsDialog(QDialog):
         # ===== 新增：待机闲聊区域（顶部） =====
         idle_section = QGroupBox("待机闲聊")
         idle_section.setStyleSheet("QGroupBox { font-weight: bold; color: #2196F3; }")
-        idle_section.setToolTip("桌宠在你空闲时偶尔说一句；间隔在「行为」页的生活提醒里设置。")
+        idle_section.setToolTip("桌宠在你空闲时偶尔说一句；间隔在「桌宠设置 → 提醒」里设置。")
         idle_lay = QVBoxLayout()
         
-        hint_idle = QLabel("💡 间隔在「行为」页的「待机闲聊间隔」中设置")
+        hint_idle = QLabel("💡 间隔在「桌宠设置 → 提醒」的「待机闲聊间隔」中设置")
         hint_idle.setStyleSheet("color: gray; font-size: 11px;")
         idle_lay.addWidget(hint_idle)
         
@@ -2685,15 +2908,11 @@ class SettingsDialog(QDialog):
     # ========== 新增：AI 配置 ==========
     def _build_ai(self):
         self._ai_loading = False
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        inner = QWidget()
-        lay = QVBoxLayout()
-        lay.setSpacing(10)
-        lay.setContentsMargins(8, 8, 8, 8)
 
-        # ── 连接配置 ──
+        # ── 连接配置页 ──
+        lay_c = QVBoxLayout()
+        lay_c.setSpacing(10)
+
         box_conn = QGroupBox("连接配置")
         form_conn = QFormLayout()
         form_conn.setSpacing(8)
@@ -2747,10 +2966,18 @@ class SettingsDialog(QDialog):
         form_conn.addRow("", self.lbl_vision_warn)
 
         box_conn.setLayout(form_conn)
-        lay.addWidget(box_conn)
+        lay_c.addWidget(box_conn)
 
-        # ── 人设 & 行为 ──
-        box_persona = QGroupBox("人设 & 行为")
+        hint_conn = QLabel("提示：选择服务商 → 填写 Key → 获取模型 → 测试连接 → 打开「桌宠控制台」体验")
+        hint_conn.setWordWrap(True)
+        lay_c.addWidget(hint_conn)
+        lay_c.addStretch(1)
+        self.page_ai_conn.setLayout(lay_c)
+
+        # ── 人设与回复页 ──
+        lay_p = QVBoxLayout()
+        lay_p.setSpacing(10)
+        box_persona = QGroupBox("人设与回复")
         vp = QVBoxLayout()
         vp.setSpacing(8)
 
@@ -2781,78 +3008,79 @@ class SettingsDialog(QDialog):
         self.ai_system_prompt.textChanged.connect(self._on_prompt_text_edited)
         vp.addWidget(self.ai_system_prompt)
 
-        grid_persona = QGridLayout()
-        grid_persona.setSpacing(8)
+        grid_reply = QGridLayout()
+        grid_reply.setSpacing(8)
 
         lbl_bl = QLabel("回复最少字数")
         lbl_bl.setToolTip("建议 AI 每次回复至少多少字（0=不限下限）")
-        grid_persona.addWidget(lbl_bl, 0, 0)
+        grid_reply.addWidget(lbl_bl, 0, 0)
         self.ai_min_reply = QSpinBox()
         self.ai_min_reply.setRange(0, 500)
         self.ai_min_reply.setSingleStep(10)
         self.ai_min_reply.setSuffix(" 字")
-        grid_persona.addWidget(self.ai_min_reply, 0, 1)
+        grid_reply.addWidget(self.ai_min_reply, 0, 1)
 
         lbl_bl2 = QLabel("回复最多字数")
         lbl_bl2.setToolTip("建议 AI 每次回复最多多少字（0=不限上限），气泡完整显示不截断")
-        grid_persona.addWidget(lbl_bl2, 0, 2)
+        grid_reply.addWidget(lbl_bl2, 0, 2)
         self.ai_max_bubble = QSpinBox()
         self.ai_max_bubble.setRange(0, 500)
         self.ai_max_bubble.setSingleStep(10)
         self.ai_max_bubble.setSuffix(" 字")
-        grid_persona.addWidget(self.ai_max_bubble, 0, 3)
+        grid_reply.addWidget(self.ai_max_bubble, 0, 3)
+
+        vp.addLayout(grid_reply)
+        box_persona.setLayout(vp)
+        lay_p.addWidget(box_persona)
+        lay_p.addStretch(1)
+        self.page_ai_persona.setLayout(lay_p)
+
+        # ── 高级选项页 ──
+        lay_a = QVBoxLayout()
+        lay_a.setSpacing(10)
+        box_adv = QGroupBox("高级选项")
+        ga = QGridLayout()
+        ga.setSpacing(8)
 
         lbl_mt = QLabel("记忆轮数")
         lbl_mt.setToolTip("保留最近 N 轮对话作为上下文发送给 AI（0=不带历史）")
-        grid_persona.addWidget(lbl_mt, 1, 0)
+        ga.addWidget(lbl_mt, 0, 0)
         self.ai_max_memory = QSpinBox()
         self.ai_max_memory.setRange(0, 50)
         self.ai_max_memory.setSuffix(" 轮")
-        grid_persona.addWidget(self.ai_max_memory, 1, 1)
+        ga.addWidget(self.ai_max_memory, 0, 1)
 
         lbl_as = QLabel("自动截图间隔")
         lbl_as.setToolTip("桌宠每隔 N 分钟自动截屏并主动发言（0=关闭自动巡视）")
-        grid_persona.addWidget(lbl_as, 1, 2)
+        ga.addWidget(lbl_as, 0, 2)
         self.ai_auto_screenshot = QSpinBox()
         self.ai_auto_screenshot.setRange(0, 120)
         self.ai_auto_screenshot.setSuffix(" 分钟")
         self.ai_auto_screenshot.setSpecialValueText("关闭")
-        grid_persona.addWidget(self.ai_auto_screenshot, 1, 3)
+        ga.addWidget(self.ai_auto_screenshot, 0, 3)
+
+        lbl_bb = QLabel("黑匣子保留条数")
+        lbl_bb.setToolTip("本地记忆黑匣子最多保留多少条记录（只影响本地存储，不影响发送给 AI 的记忆轮数）")
+        ga.addWidget(lbl_bb, 1, 0)
+        self.ai_blackbox_keep = QSpinBox()
+        self.ai_blackbox_keep.setRange(20, 2000)
+        self.ai_blackbox_keep.setSuffix(" 条")
+        ga.addWidget(self.ai_blackbox_keep, 1, 1)
 
         self.cb_app_bubbles_ai = QCheckBox("应用检测气泡")
         self.cb_app_bubbles_ai.setToolTip("只控制“检测应用触发的文案气泡”，与 AI 对话无关")
         self.cb_app_bubbles_ai.stateChanged.connect(self._sync_app_bubbles_from_ai_checkbox)
-        grid_persona.addWidget(self.cb_app_bubbles_ai, 2, 2, 1, 2)
+        ga.addWidget(self.cb_app_bubbles_ai, 2, 0, 1, 4)
 
         self.cb_auto_watch_ai = QCheckBox("启用自动巡视")
         self.cb_auto_watch_ai.setToolTip("开启后桌宠按上方设定的间隔定时巡视并主动发言\n间隔为 0 时无效")
         self.cb_auto_watch_ai.stateChanged.connect(self._toggle_auto_watch_from_settings)
-        grid_persona.addWidget(self.cb_auto_watch_ai, 3, 2, 1, 2)
+        ga.addWidget(self.cb_auto_watch_ai, 3, 0, 1, 4)
 
-        lbl_bb = QLabel("黑匣子保留条数")
-        lbl_bb.setToolTip("本地记忆黑匣子最多保留多少条记录（只影响本地存储，不影响发送给 AI 的记忆轮数）")
-        grid_persona.addWidget(lbl_bb, 2, 0)
-        self.ai_blackbox_keep = QSpinBox()
-        self.ai_blackbox_keep.setRange(20, 2000)
-        self.ai_blackbox_keep.setSuffix(" 条")
-        grid_persona.addWidget(self.ai_blackbox_keep, 2, 1)
-
-        vp.addLayout(grid_persona)
-        box_persona.setLayout(vp)
-        lay.addWidget(box_persona)
-
-        hint = QLabel("提示：选择服务商 → 填写 Key → 获取模型 → 测试连接 → 打开「桌宠控制台」体验")
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
-
-        lay.addStretch(1)
-        inner.setLayout(lay)
-        scroll.setWidget(inner)
-
-        outer = QVBoxLayout()
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(scroll)
-        self.tab_ai.setLayout(outer)
+        box_adv.setLayout(ga)
+        lay_a.addWidget(box_adv)
+        lay_a.addStretch(1)
+        self.page_ai_adv.setLayout(lay_a)
 
     # ── AI: provider dropdown ──
     def _on_provider_changed(self, idx):
@@ -3271,8 +3499,11 @@ class SettingsDialog(QDialog):
 
     def _rebuild_rules_tab(self):
         """重建Rules标签页（类别变化后需要重建UI）"""
-        # 清空旧布局
-        old_layout = self.tab_rules.layout()
+        # 清空旧布局（仅规则主体，保留顶部总开关区）
+        host = getattr(self, "_rules_body_host", None)
+        if host is None:
+            return
+        old_layout = host.layout()
         if old_layout is not None:
             QWidget().setLayout(old_layout)
         
