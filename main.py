@@ -10,6 +10,8 @@ class _QtLogFilter:
 
 
 def _qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: str) -> None:
+    if not message:
+        return
     if "QFont::setPointSize" in message and "(-1)" in message:
         return
     ph = _QtLogFilter.prev_handler

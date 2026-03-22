@@ -11,7 +11,7 @@ import ctypes
 from ctypes import wintypes
 
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QSystemTrayIcon, QMenu, QGraphicsDropShadowEffect, QStyle, QWidget
-from PyQt6.QtCore import Qt, QTimer, QTime, QSize, QRectF, QRect
+from PyQt6.QtCore import Qt, QTimer, QTime, QSize, QRectF, QRect, QStandardPaths
 from PyQt6.QtGui import QCursor, QPixmap, QPainter, QColor, QFont, QIcon, QShortcut, QAction, QKeySequence
 
 from logger import logger
@@ -235,7 +235,19 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
 
         # ---------- 4) 屏幕适配 ----------
         screen = QApplication.primaryScreen()
-        self.screen_rect = screen.availableGeometry()
+        if screen is None:
+            try:
+                from PyQt6.QtGui import QGuiApplication
+
+                screen = QGuiApplication.primaryScreen()
+            except Exception:
+                screen = None
+        if screen is None:
+            # 无可用显示器（远程/特殊环境）时用合理默认，避免启动崩溃
+            self.screen_rect = QRect(0, 0, 1920, 1080)
+            logger.warning("未检测到主屏幕，使用默认几何 1920x1080")
+        else:
+            self.screen_rect = screen.availableGeometry()
 
         # 尺寸（可缩放）
         self.pet_size = PET_SIZE_DEFAULT
@@ -701,9 +713,13 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
             log_files.sort(reverse=True)
             latest_log = os.path.join(log_dir, log_files[0])
             
-            # 复制到桌面
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            if not os.path.exists(desktop):
+            # 复制到桌面（用系统标准路径，兼容中文/OneDrive 等）
+            desktop = QStandardPaths.writableLocation(
+                QStandardPaths.StandardLocation.DesktopLocation
+            )
+            if not desktop or not os.path.isdir(desktop):
+                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+            if not os.path.isdir(desktop):
                 desktop = os.path.expanduser("~")
             
             dest_file = os.path.join(desktop, f"DesktopPet_Log_{log_files[0]}")
