@@ -295,18 +295,59 @@ def _settings_stylesheet() -> str:
         QPushButton:hover {
             background: #f8fbff;
             border: 1px solid #b8d0f2;
+            color: #111827;
         }
         QPushButton:pressed {
-            background: #edf4ff;
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #0f172a;
+        }
+        QPushButton:checked {
+            background: #e8f0fe;
+            border: 1px solid #93c5fd;
+            color: #0f172a;
+        }
+        QPushButton:checked:hover {
+            background: #dbeafe;
+            color: #0f172a;
+        }
+        QPushButton:checked:pressed {
+            background: #bfdbfe;
+            color: #0f172a;
+        }
+        QPushButton:focus {
+            outline: none;
+            color: #111827;
+            border: 1px solid #5b9cff;
+        }
+        QPushButton:focus:hover {
+            color: #111827;
+        }
+        QPushButton:focus:pressed {
+            color: #0f172a;
+        }
+        QPushButton:disabled {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
         }
         QPushButton#qt_default_push_button, QPushButton:default {
             background: #2f6fed;
-            color: white;
+            color: #ffffff;
             border: 1px solid #2f6fed;
             font-weight: 700;
         }
         QPushButton#qt_default_push_button:hover, QPushButton:default:hover {
             background: #255fce;
+            color: #ffffff;
+        }
+        QPushButton#qt_default_push_button:pressed, QPushButton:default:pressed {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+        QPushButton#qt_default_push_button:focus, QPushButton:default:focus {
+            color: #ffffff;
+            border: 1px solid #1e3a8a;
         }
         QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
             background: #ffffff;
@@ -345,6 +386,7 @@ def _settings_stylesheet() -> str:
             selection-color: #1e40af;
             border: 1px solid #dbe4f0;
             outline: none;
+            padding: 0px;
         }
         QWidget#SettingsInnerScrollViewport {
             background-color: #f5f7fb;
@@ -364,6 +406,20 @@ def _settings_stylesheet() -> str:
             border: none;
         }
         QToolButton#SettingsCollapsibleHeader:hover {
+            color: #2563eb;
+            background: #f0f7ff;
+            border-radius: 8px;
+        }
+        QToolButton#SettingsCollapsibleHeader:pressed {
+            color: #1e3a8a;
+            background: #e0ecff;
+            border-radius: 8px;
+        }
+        QToolButton#SettingsCollapsibleHeader:checked {
+            color: #1e40af;
+            background: transparent;
+        }
+        QToolButton#SettingsCollapsibleHeader:checked:hover {
             color: #2563eb;
             background: #f0f7ff;
             border-radius: 8px;
@@ -458,19 +514,27 @@ def _settings_stylesheet() -> str:
         QPushButton#SettingsSpinStepBtn:hover {
             background: #e2e8f0;
             border-color: #94a3b8;
+            color: #1e3a8a;
         }
         QPushButton#SettingsSpinStepBtn:pressed {
             background: #cbd5e1;
+            color: #172554;
+        }
+        QPushButton#SettingsSpinStepBtn:focus {
+            color: #1e40af;
+            border: 1px solid #5b9cff;
         }
 
         QComboBox {
             padding-right: 26px;
         }
         QComboBox::drop-down {
-            subcontrol-origin: padding;
+            subcontrol-origin: border;
             subcontrol-position: top right;
-            width: 24px;
+            width: 26px;
+            border: none;
             border-left: 1px solid #d4deed;
+            margin: 0px;
             border-top-right-radius: 7px;
             border-bottom-right-radius: 7px;
             background: #f8fafc;
@@ -502,6 +566,10 @@ def _settings_stylesheet() -> str:
             background: #1d4ed8;
             color: #ffffff;
         }
+        QPushButton#SettingsPrimaryButton:focus {
+            color: #ffffff;
+            border: 1px solid #1e3a8a;
+        }
     """
 
 
@@ -526,6 +594,26 @@ def _aux_dialog_stylesheet() -> str:
         }
         QPushButton:hover {
             background: #f8fbff;
+            border: 1px solid #b8d0f2;
+            color: #111827;
+        }
+        QPushButton:pressed {
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            color: #0f172a;
+        }
+        QPushButton:checked {
+            background: #e8f0fe;
+            border: 1px solid #93c5fd;
+            color: #0f172a;
+        }
+        QPushButton:focus {
+            outline: none;
+            color: #111827;
+            border: 1px solid #5b9cff;
+        }
+        QPushButton:focus:pressed {
+            color: #0f172a;
         }
         QPushButton:default {
             background: #2f6fed;
@@ -537,6 +625,14 @@ def _aux_dialog_stylesheet() -> str:
             background: #255fce;
             color: #ffffff;
         }
+        QPushButton:default:pressed {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
+        QPushButton:default:focus {
+            color: #ffffff;
+            border: 1px solid #1e3a8a;
+        }
         QLineEdit, QComboBox {
             background: #ffffff;
             border: 1px solid #d4deed;
@@ -544,12 +640,28 @@ def _aux_dialog_stylesheet() -> str:
             padding: 6px 8px;
             color: #111827;
         }
+        QComboBox {
+            padding-right: 26px;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: border;
+            subcontrol-position: top right;
+            width: 26px;
+            border: none;
+            border-left: 1px solid #d4deed;
+            margin: 0px;
+            border-top-right-radius: 7px;
+            border-bottom-right-radius: 7px;
+            background: #f8fafc;
+        }
         QComboBox QAbstractItemView {
             background: #ffffff;
             color: #111827;
             selection-background-color: #dbeafe;
             selection-color: #1e40af;
             border: 1px solid #dbe4f0;
+            outline: none;
+            padding: 0px;
         }
         QListWidget {
             background: #ffffff;
@@ -632,9 +744,16 @@ def _input_get_item(
 
 
 def _polish_combo_popup(cb: QComboBox) -> None:
-    """只样式化 view，不要改弹层父窗口几何，否则下拉会错位。"""
+    """只样式化 list view + 视口，不改弹层父容器几何（避免下拉错位）；消除列表上下黑边。"""
     try:
         v = cb.view()
+        v.setAutoFillBackground(True)
+        pal_v = QPalette(v.palette())
+        pal_v.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, QColor("#ffffff"))
+        pal_v.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#ffffff"))
+        pal_v.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, QColor("#ffffff"))
+        pal_v.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#ffffff"))
+        v.setPalette(pal_v)
         v.setStyleSheet(
             """
             QAbstractItemView {
@@ -644,9 +763,21 @@ def _polish_combo_popup(cb: QComboBox) -> None:
                 selection-color: #1e40af;
                 border: 1px solid #dbe4f0;
                 outline: none;
+                padding: 0px;
             }
             """
         )
+        vp = v.viewport()
+        if vp is not None:
+            vp.setAutoFillBackground(True)
+            vp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            pal_vp = QPalette(vp.palette())
+            pal_vp.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, QColor("#ffffff"))
+            pal_vp.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#ffffff"))
+            pal_vp.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, QColor("#ffffff"))
+            pal_vp.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#ffffff"))
+            vp.setPalette(pal_vp)
+            vp.setStyleSheet("background-color: #ffffff; border: none;")
     except Exception:
         pass
 
@@ -811,6 +942,14 @@ class SettingsDialog(QDialog):
         for cb in self.findChildren(QComboBox):
             _polish_combo_popup(cb)
 
+    def _normalize_pushbutton_defaults(self) -> None:
+        """仅「保存并应用」保留 default/autoDefault，避免其它按钮抢默认态导致白字/看不见。"""
+        primary = "SettingsPrimaryButton"
+        for b in self.findChildren(QPushButton):
+            is_primary = b.objectName() == primary
+            b.setAutoDefault(is_primary)
+            b.setDefault(is_primary)
+
     def _make_split_tab(self, labels: list, pages: list) -> QWidget:
         container = QWidget()
         container.setObjectName("SettingsTabContainer")
@@ -934,6 +1073,7 @@ class SettingsDialog(QDialog):
         self._build_filters()
         self._build_ai()
         self._polish_all_combo_popups()
+        self._normalize_pushbutton_defaults()
 
         self._loading = False
         self._load_into_widgets()
@@ -1406,12 +1546,22 @@ class SettingsDialog(QDialog):
         btn_row = QHBoxLayout()
         self.btn_restore_values = QPushButton("恢复默认数值")
         self.btn_restore_values.setToolTip("将触发概率、显示时长、冷却时间等恢复为默认，不删除你添加的类别。")
-        self.btn_restore_values.setStyleSheet("QPushButton { padding: 8px; font-weight: bold; }")
+        self.btn_restore_values.setStyleSheet(
+            "QPushButton { padding: 8px; font-weight: bold; background: #ffffff; color: #1f2937; border: 1px solid #dbe4f0; }"
+            "QPushButton:hover { background: #f8fbff; color: #111827; }"
+            "QPushButton:pressed { background: #dbeafe; color: #0f172a; }"
+            "QPushButton:focus { color: #111827; border: 1px solid #5b9cff; }"
+        )
         self.btn_restore_values.clicked.connect(self._restore_rules_values)
         btn_row.addWidget(self.btn_restore_values)
 
         self.btn_reset_categories = QPushButton("⚠️ 重置类别（删除自定义）")
-        self.btn_reset_categories.setStyleSheet("QPushButton { padding: 8px; font-weight: bold; color: #f44336; }")
+        self.btn_reset_categories.setStyleSheet(
+            "QPushButton { padding: 8px; font-weight: bold; background: #fff5f5; color: #c62828; border: 1px solid #ffcdd2; }"
+            "QPushButton:hover { background: #ffebee; color: #b71c1c; }"
+            "QPushButton:pressed { background: #ffcdd2; color: #8b0000; }"
+            "QPushButton:focus { color: #b71c1c; border: 1px solid #ef5350; }"
+        )
         self.btn_reset_categories.clicked.connect(self._reset_categories)
         btn_row.addWidget(self.btn_reset_categories)
 
@@ -1476,7 +1626,12 @@ class SettingsDialog(QDialog):
         # 工具栏：自动抓取应用 + 添加网站
         btn_toolbar = QHBoxLayout()
         self.btn_refresh = QPushButton("🔄 自动抓取应用")
-        self.btn_refresh.setStyleSheet("QPushButton { font-weight: bold; padding: 8px; background-color: #4CAF50; color: white; } QPushButton:hover { background-color: #45a049; }")
+        self.btn_refresh.setStyleSheet(
+            "QPushButton { font-weight: bold; padding: 8px; background-color: #4CAF50; color: #ffffff; border: 1px solid #43a047; }"
+            "QPushButton:hover { background-color: #45a049; color: #ffffff; border: 1px solid #3d8b40; }"
+            "QPushButton:pressed { background-color: #388e3c; color: #ffffff; }"
+            "QPushButton:focus { color: #ffffff; border: 1px solid #2e7d32; }"
+        )
         self.btn_refresh.setToolTip("抓取最近在前台显示的应用。\n使用技巧：先打开要识别的应用并保持在前台，再点此按钮；托盘类应用需先打开窗口。")
         self.btn_refresh.clicked.connect(self._refresh_detected)
         hint_capture = QLabel("请先切换到要识别的应用窗口，再点此按钮。")
@@ -1484,7 +1639,12 @@ class SettingsDialog(QDialog):
         hint_capture.setWordWrap(True)
         
         self.btn_add_website_mapping = QPushButton("+ 添加网站")
-        self.btn_add_website_mapping.setStyleSheet("QPushButton { font-weight: bold; padding: 8px; background-color: #2196F3; color: white; } QPushButton:hover { background-color: #0b7dda; }")
+        self.btn_add_website_mapping.setStyleSheet(
+            "QPushButton { font-weight: bold; padding: 8px; background-color: #2196F3; color: #ffffff; border: 1px solid #1e88e5; }"
+            "QPushButton:hover { background-color: #1e88e5; color: #ffffff; }"
+            "QPushButton:pressed { background-color: #1565c0; color: #ffffff; }"
+            "QPushButton:focus { color: #ffffff; border: 1px solid #0d47a1; }"
+        )
         self.btn_add_website_mapping.clicked.connect(self._add_website_dialog)
         
         btn_toolbar.addWidget(self.btn_refresh)
@@ -2858,7 +3018,12 @@ class SettingsDialog(QDialog):
         
         # 检测按钮
         btn_detect = QPushButton("🔍 检测浏览器窗口")
-        btn_detect.setStyleSheet("QPushButton { font-size: 14px; padding: 10px; background-color: #4CAF50; color: white; font-weight: bold; } QPushButton:hover { background-color: #45a049; }")
+        btn_detect.setStyleSheet(
+            "QPushButton { font-size: 14px; padding: 10px; background-color: #4CAF50; color: #ffffff; font-weight: bold; border: 1px solid #43a047; }"
+            "QPushButton:hover { background-color: #45a049; color: #ffffff; }"
+            "QPushButton:pressed { background-color: #388e3c; color: #ffffff; }"
+            "QPushButton:focus { color: #ffffff; border: 1px solid #2e7d32; }"
+        )
         lay.addWidget(btn_detect)
         
         # 检测结果区域
