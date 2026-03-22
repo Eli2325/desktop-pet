@@ -7,9 +7,9 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QPushButton, QFormLayout, QListWidget, QListWidgetItem,
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout, QSplitter, QStackedWidget,
-    QSizePolicy, QStyleFactory, QToolButton,
+    QSizePolicy, QStyleFactory, QToolButton, QAbstractSpinBox,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
 from PyQt6.QtGui import QColor, QIcon, QPalette
 from logger import logger
 from ai_config import (
@@ -440,31 +440,27 @@ def _settings_stylesheet() -> str:
             border: none;
         }
 
-        /* 数字框：方案 A — 保留 Fusion 自带箭头，只统一槽底色与分隔线（避免自绘三角变方块） */
+        /* 数字框：配合 NoButtons + 旁路 +/−（SettingsSpinStepBtn） */
         QSpinBox, QDoubleSpinBox {
-            padding-right: 24px;
+            padding: 6px 8px;
         }
-        QSpinBox::up-button, QDoubleSpinBox::up-button {
-            subcontrol-origin: border;
-            subcontrol-position: right top;
-            width: 22px;
-            border-left: 1px solid #d4deed;
-            border-bottom: 1px solid #d4deed;
-            border-top-right-radius: 7px;
+        QPushButton#SettingsSpinStepBtn {
+            min-height: 26px;
+            max-height: 30px;
+            padding: 2px 4px;
+            font-weight: 700;
+            font-size: 15px;
+            color: #1e40af;
             background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
         }
-        QSpinBox::down-button, QDoubleSpinBox::down-button {
-            subcontrol-origin: border;
-            subcontrol-position: right bottom;
-            width: 22px;
-            border-left: 1px solid #d4deed;
-            border-top: 1px solid #d4deed;
-            border-bottom-right-radius: 7px;
-            background: #f1f5f9;
-        }
-        QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
-        QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+        QPushButton#SettingsSpinStepBtn:hover {
             background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+        QPushButton#SettingsSpinStepBtn:pressed {
+            background: #cbd5e1;
         }
 
         QComboBox {
@@ -636,6 +632,7 @@ def _input_get_item(
 
 
 def _polish_combo_popup(cb: QComboBox) -> None:
+    """只样式化 view，不要改弹层父窗口几何，否则下拉会错位。"""
     try:
         v = cb.view()
         v.setStyleSheet(
@@ -650,19 +647,61 @@ def _polish_combo_popup(cb: QComboBox) -> None:
             }
             """
         )
-        p = v.parentWidget()
-        if p is not None:
-            p.setAutoFillBackground(True)
-            p.setStyleSheet("background: #ffffff; border: 1px solid #dbe4f0; border-radius: 8px;")
     except Exception:
         pass
+
+
+def _light_horizontal_separator() -> QFrame:
+    """浅色 1px 分隔线，避免 QFrame.Sunken 在深色系统下变成黑条。"""
+    ln = QFrame()
+    ln.setFrameShape(QFrame.Shape.NoFrame)
+    ln.setFixedHeight(1)
+    ln.setStyleSheet("background-color: #dbe4f0; border: none; min-height: 1px; max-height: 1px;")
+    return ln
+
+
+def _spin_with_buttons(sb: QAbstractSpinBox, compact: bool = False) -> QWidget:
+    """方案 B：隐藏原生步进键，右侧显式 +/−，避免 Fusion 下图标不可见。"""
+    sb.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+    box = QWidget()
+    h = QHBoxLayout(box)
+    h.setContentsMargins(0, 0, 0, 0)
+    h.setSpacing(4 if compact else 6)
+    h.addWidget(sb, 1)
+    bw = 22 if compact else 30
+    minus = QPushButton("−")
+    minus.setObjectName("SettingsSpinStepBtn")
+    minus.setFixedWidth(bw)
+    minus.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    plus = QPushButton("+")
+    plus.setObjectName("SettingsSpinStepBtn")
+    plus.setFixedWidth(bw)
+    plus.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    minus.clicked.connect(lambda: sb.stepBy(-1))
+    plus.clicked.connect(lambda: sb.stepBy(1))
+    h.addWidget(minus, 0, Qt.AlignmentFlag.AlignVCenter)
+    h.addWidget(plus, 0, Qt.AlignmentFlag.AlignVCenter)
+    return box
 
 
 def _polish_inner_scroll_viewport(sa: QScrollArea) -> None:
     vp = sa.viewport()
     vp.setObjectName("SettingsInnerScrollViewport")
     vp.setAutoFillBackground(True)
-    vp.setBackgroundRole(QPalette.ColorRole.Window)
+    vp.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    pal = QPalette(vp.palette())
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#f5f7fb"))
+    pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, QColor("#ffffff"))
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#f5f7fb"))
+    pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, QColor("#ffffff"))
+    vp.setPalette(pal)
+    vp.setStyleSheet("background-color: #f5f7fb;")
+    # 滚动区域本体在部分系统/主题下仍会露出深色 Window，强制与内容区一致
+    pal_sa = QPalette(sa.palette())
+    pal_sa.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#f5f7fb"))
+    pal_sa.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#f5f7fb"))
+    sa.setPalette(pal_sa)
+    sa.setAutoFillBackground(True)
 
 
 class _CollapsibleSection(QWidget):
@@ -684,6 +723,9 @@ class _CollapsibleSection(QWidget):
         self._header.toggled.connect(self._on_toggled)
         self._body = QWidget()
         self._body.setVisible(expanded)
+        self._body.setAutoFillBackground(True)
+        self._body.setStyleSheet("background-color: #f5f7fb; border-radius: 0 0 8px 8px;")
+        self.setAutoFillBackground(True)
         self._body_lay = QVBoxLayout(self._body)
         self._body_lay.setContentsMargins(10, 0, 10, 10)
         self._body_lay.setSpacing(6)
@@ -711,6 +753,29 @@ class _NoWheelChainScrollArea(QScrollArea):
     def wheelEvent(self, event):
         super().wheelEvent(event)
         event.accept()
+
+
+class _SettingsComboBox(QComboBox):
+    """在多层滚动/分割布局下，下拉层偶发锚点错误；showPopup 后对齐到控件左下角。"""
+
+    def showPopup(self):
+        super().showPopup()
+        QTimer.singleShot(0, self._reposition_popup)
+
+    def _reposition_popup(self):
+        try:
+            view = self.view()
+            if view is None:
+                return
+            popup = view.window()
+            if popup is None or popup is self.window():
+                return
+            bottom_left = self.mapToGlobal(QPoint(0, self.height()))
+            w = max(self.width(), popup.width())
+            h = popup.height()
+            popup.setGeometry(bottom_left.x(), bottom_left.y(), w, h)
+        except Exception:
+            pass
 
 
 class SettingsDialog(QDialog):
@@ -1074,13 +1139,13 @@ class SettingsDialog(QDialog):
         self.sp_move_speed.setSingleStep(0.1)
         self.sp_move_speed.setDecimals(1)
         self.sp_move_speed.setToolTip("数值越大移动越快，建议 1.0～2.0。")
-        form_beh.addRow(QLabel("移动速度"), self.sp_move_speed)
+        form_beh.addRow(QLabel("移动速度"), _spin_with_buttons(self.sp_move_speed))
 
         self.sp_ai_interval = QSpinBox()
         self.sp_ai_interval.setRange(200, 20000)
         self.sp_ai_interval.setSingleStep(200)
         self.sp_ai_interval.setToolTip("桌宠「思考」间隔（毫秒），越小越爱动；建议 2000～5000。")
-        form_beh.addRow(QLabel("活跃度（思考间隔 ms）"), self.sp_ai_interval)
+        form_beh.addRow(QLabel("活跃度（思考间隔 ms）"), _spin_with_buttons(self.sp_ai_interval))
 
         self.cb_auto_walk = QCheckBox("允许自动走动")
         form_beh.addRow(QLabel("自动走动"), self.cb_auto_walk)
@@ -1089,13 +1154,13 @@ class SettingsDialog(QDialog):
         self.sp_roam_radius.setRange(0, 2000)
         self.sp_roam_radius.setSingleStep(20)
         self.sp_roam_radius.setToolTip("以当前落点为中心的水平游走范围（像素），0 表示不限制。")
-        form_beh.addRow(QLabel("游走范围（0=不限）"), self.sp_roam_radius)
+        form_beh.addRow(QLabel("游走范围（0=不限）"), _spin_with_buttons(self.sp_roam_radius))
 
         self.sp_edge_margin = QSpinBox()
         self.sp_edge_margin.setRange(0, 200)
         self.sp_edge_margin.setSingleStep(2)
         self.sp_edge_margin.setToolTip("距离屏幕边缘保留的安全距离，避免贴边。")
-        form_beh.addRow(QLabel("边缘安全距离"), self.sp_edge_margin)
+        form_beh.addRow(QLabel("边缘安全距离"), _spin_with_buttons(self.sp_edge_margin))
 
         self.cb_auto_fall = QCheckBox("允许自动掉落")
         self.cb_auto_fall.setToolTip("关闭后，贴墙或挂天花板时不会自动掉下来。")
@@ -1122,13 +1187,13 @@ class SettingsDialog(QDialog):
         self.sp_sleep_idle_min.setRange(1, 240)
         self.sp_sleep_idle_min.setValue(20)
         self.sp_sleep_idle_min.setToolTip("桌宠静止不动超过该分钟数后进入睡眠。")
-        form_sleep.addRow(QLabel("发呆多久进入睡眠（分钟）"), self.sp_sleep_idle_min)
+        form_sleep.addRow(QLabel("发呆多久进入睡眠（分钟）"), _spin_with_buttons(self.sp_sleep_idle_min))
 
         self.sp_adrenaline_min = QSpinBox()
         self.sp_adrenaline_min.setRange(0, 120)
         self.sp_adrenaline_min.setValue(10)
         self.sp_adrenaline_min.setToolTip("启动后的一段时间内不会睡觉，方便你先操作。")
-        form_sleep.addRow(QLabel("启动免睡期（分钟）"), self.sp_adrenaline_min)
+        form_sleep.addRow(QLabel("启动免睡期（分钟）"), _spin_with_buttons(self.sp_adrenaline_min))
 
         row_dbg = QHBoxLayout()
         self.btn_force_sleep = QPushButton("强制睡觉")
@@ -1180,7 +1245,7 @@ class SettingsDialog(QDialog):
         roww = QHBoxLayout()
         roww.addWidget(self.cb_water_enable)
         roww.addWidget(QLabel("每"))
-        roww.addWidget(self.sp_water_interval)
+        roww.addWidget(_spin_with_buttons(self.sp_water_interval))
         roww.addWidget(QLabel("分钟"))
         wwrap = QWidget()
         wwrap.setLayout(roww)
@@ -1195,7 +1260,7 @@ class SettingsDialog(QDialog):
         rowm = QHBoxLayout()
         rowm.addWidget(self.cb_move_enable)
         rowm.addWidget(QLabel("每"))
-        rowm.addWidget(self.sp_move_interval)
+        rowm.addWidget(_spin_with_buttons(self.sp_move_interval))
         rowm.addWidget(QLabel("分钟"))
         mwrap = QWidget()
         mwrap.setLayout(rowm)
@@ -1215,14 +1280,14 @@ class SettingsDialog(QDialog):
 
         rowt = QHBoxLayout()
         rowt.addWidget(QLabel("从"))
-        rowt.addWidget(self.sp_start_h)
+        rowt.addWidget(_spin_with_buttons(self.sp_start_h, compact=True))
         rowt.addWidget(QLabel(":"))
-        rowt.addWidget(self.sp_start_m)
+        rowt.addWidget(_spin_with_buttons(self.sp_start_m, compact=True))
         rowt.addSpacing(8)
         rowt.addWidget(QLabel("到"))
-        rowt.addWidget(self.sp_end_h)
+        rowt.addWidget(_spin_with_buttons(self.sp_end_h, compact=True))
         rowt.addWidget(QLabel(":"))
-        rowt.addWidget(self.sp_end_m)
+        rowt.addWidget(_spin_with_buttons(self.sp_end_m, compact=True))
         twrap = QWidget()
         twrap.setLayout(rowt)
         form_rem.addRow(QLabel("生效时段"), twrap)
@@ -1232,14 +1297,14 @@ class SettingsDialog(QDialog):
         self.sp_notice_ms.setRange(500, 20000)
         self.sp_notice_ms.setSingleStep(500)
         self.sp_notice_ms.setToolTip("提醒气泡在屏幕上停留的毫秒数。")
-        form_rem.addRow(QLabel("提示停留（毫秒）"), self.sp_notice_ms)
+        form_rem.addRow(QLabel("提示停留（毫秒）"), _spin_with_buttons(self.sp_notice_ms))
 
         self.sp_idle_chat_interval = QSpinBox()
         self.sp_idle_chat_interval.setRange(1, 120)
         self.sp_idle_chat_interval.setSingleStep(1)
         self.sp_idle_chat_interval.setValue(10)
         self.sp_idle_chat_interval.setToolTip("桌宠多久碎碎念一次（在你相对空闲时）。")
-        form_rem.addRow(QLabel("待机闲聊间隔（分钟）"), self.sp_idle_chat_interval)
+        form_rem.addRow(QLabel("待机闲聊间隔（分钟）"), _spin_with_buttons(self.sp_idle_chat_interval))
 
         lay_r.addLayout(form_rem)
 
@@ -1267,75 +1332,44 @@ class SettingsDialog(QDialog):
         self.sp_prob.setSingleStep(0.05)
         self.sp_prob.setToolTip("每次满足条件时，按该概率决定是否弹出活动气泡。")
         global_grid.addWidget(QLabel("触发概率"), 0, 0)
-        global_grid.addWidget(self.sp_prob, 0, 1)
+        global_grid.addWidget(_spin_with_buttons(self.sp_prob), 0, 1)
 
         self.sp_show = QSpinBox()
         self.sp_show.setRange(500, 20000)
         self.sp_show.setSingleStep(100)
         self.sp_show.setToolTip("活动气泡在屏幕上停留的毫秒数。")
         global_grid.addWidget(QLabel("显示时长（毫秒）"), 0, 2)
-        global_grid.addWidget(self.sp_show, 0, 3)
+        global_grid.addWidget(_spin_with_buttons(self.sp_show), 0, 3)
 
         self.sp_front = QSpinBox()
         self.sp_front.setRange(0, 5000)
         self.sp_front.setSingleStep(50)
         self.sp_front.setToolTip("前台应用切换后需稳定超过该时间（毫秒）才视为真正切换，避免误触发。")
         global_grid.addWidget(QLabel("前台稳定阈值（毫秒）"), 1, 0)
-        global_grid.addWidget(self.sp_front, 1, 1)
+        global_grid.addWidget(_spin_with_buttons(self.sp_front), 1, 1)
 
         self.sp_pending = QSpinBox()
         self.sp_pending.setRange(0, 10)
         self.sp_pending.setSingleStep(1)
         self.sp_pending.setToolTip("最多排队几条「等着说」的提醒。")
         global_grid.addWidget(QLabel("最大待定数"), 1, 2)
-        global_grid.addWidget(self.sp_pending, 1, 3)
+        global_grid.addWidget(_spin_with_buttons(self.sp_pending), 1, 3)
 
         group_global.setLayout(global_grid)
         global_grid.setColumnStretch(1, 1)
         global_grid.setColumnStretch(3, 1)
         top_lay.addWidget(group_global)
 
-        # ---- 可折叠：冷却列表（仅内部视口滚动，标题不跟着滚）----
-        sec_cd = _CollapsibleSection("各类别冷却时间", expanded=True)
-        cd_scroll = _NoWheelChainScrollArea()
-        cd_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        cd_scroll.setBackgroundRole(QPalette.ColorRole.Window)
-        cd_scroll.setAutoFillBackground(True)
-        _polish_inner_scroll_viewport(cd_scroll)
-        cd_scroll.setWidgetResizable(True)
-        cd_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        cd_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        cd_scroll.setMinimumHeight(168)
+        # ---- 管理类别：普通分组框 + 内部滚动（不折叠）----
+        cat_box = QGroupBox("管理类别")
+        cat_box.setStyleSheet("QGroupBox { font-weight: bold; }")
+        cat_outer = QVBoxLayout(cat_box)
 
-        cd_holder = QWidget()
-        cd_form = QFormLayout(cd_holder)
-        self.cooldowns = {}
-        cooldown_defaults = {
-            "browse": 600, "video": 480, "chat": 480, "ai": 360,
-            "code": 480, "office": 600, "gamehub": 600, "music": 480
-        }
-        category_names = {
-            "browse": "浏览", "video": "视频", "chat": "聊天", "ai": "AI",
-            "code": "编程", "office": "办公", "gamehub": "游戏", "music": "音乐"
-        }
-        for cat in CATEGORIES:
-            sp = QSpinBox()
-            sp.setRange(0, 86400)
-            sp.setSingleStep(30)
-            sp.setToolTip("该类别应用触发一次气泡后，需间隔多少秒才能再次触发。")
-            self.cooldowns[cat] = sp
-            cn_name = category_names.get(cat, cat)
-            cd_form.addRow(f"{cn_name} 冷却（秒）", sp)
-
-        cd_scroll.setWidget(cd_holder)
-        sec_cd.body_layout().addWidget(cd_scroll, 1)
-
-        # ---- 可折叠：管理类别 ----
-        sec_cat = _CollapsibleSection("管理类别", expanded=True)
         cat_scroll = _NoWheelChainScrollArea()
         cat_scroll.setFrameShape(QFrame.Shape.NoFrame)
         cat_scroll.setBackgroundRole(QPalette.ColorRole.Window)
         cat_scroll.setAutoFillBackground(True)
+        cat_scroll.setStyleSheet("QScrollArea { background-color: #f5f7fb; border: none; }")
         _polish_inner_scroll_viewport(cat_scroll)
         cat_scroll.setWidgetResizable(True)
         cat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -1343,6 +1377,7 @@ class SettingsDialog(QDialog):
         cat_scroll.setMinimumHeight(220)
 
         cat_inner = QWidget()
+        cat_inner.setStyleSheet("background-color: #f5f7fb;")
         cat_v = QVBoxLayout(cat_inner)
         hint_cat = QLabel("💡 添加/删除/重命名类别，冷却时间会同步")
         hint_cat.setStyleSheet("color: #64748b; font-size: 11px;")
@@ -1366,7 +1401,7 @@ class SettingsDialog(QDialog):
         cat_v.addLayout(cat_btn_row)
 
         cat_scroll.setWidget(cat_inner)
-        sec_cat.body_layout().addWidget(cat_scroll, 1)
+        cat_outer.addWidget(cat_scroll, 1)
 
         btn_row = QHBoxLayout()
         self.btn_restore_values = QPushButton("恢复默认数值")
@@ -1380,11 +1415,44 @@ class SettingsDialog(QDialog):
         self.btn_reset_categories.clicked.connect(self._reset_categories)
         btn_row.addWidget(self.btn_reset_categories)
 
+        # ---- 可折叠：各类别冷却时间（本 Tab 最底部）----
+        sec_cd = _CollapsibleSection("各类别冷却时间", expanded=True)
+        cd_scroll = _NoWheelChainScrollArea()
+        cd_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cd_scroll.setBackgroundRole(QPalette.ColorRole.Window)
+        cd_scroll.setAutoFillBackground(True)
+        cd_scroll.setStyleSheet("QScrollArea { background-color: #f5f7fb; border: none; }")
+        _polish_inner_scroll_viewport(cd_scroll)
+        cd_scroll.setWidgetResizable(True)
+        cd_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        cd_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        cd_scroll.setMinimumHeight(168)
+
+        cd_holder = QWidget()
+        cd_holder.setStyleSheet("background-color: #f5f7fb;")
+        cd_form = QFormLayout(cd_holder)
+        self.cooldowns = {}
+        category_names = {
+            "browse": "浏览", "video": "视频", "chat": "聊天", "ai": "AI",
+            "code": "编程", "office": "办公", "gamehub": "游戏", "music": "音乐"
+        }
+        for cat in CATEGORIES:
+            sp = QSpinBox()
+            sp.setRange(0, 86400)
+            sp.setSingleStep(30)
+            sp.setToolTip("该类别应用触发一次气泡后，需间隔多少秒才能再次触发。")
+            self.cooldowns[cat] = sp
+            cn_name = category_names.get(cat, cat)
+            cd_form.addRow(f"{cn_name} 冷却（秒）", _spin_with_buttons(sp))
+
+        cd_scroll.setWidget(cd_holder)
+        sec_cd.body_layout().addWidget(cd_scroll, 1)
+
         outer = QVBoxLayout()
         outer.addLayout(top_lay)
-        outer.addWidget(sec_cd, 1)
-        outer.addWidget(sec_cat, 1)
+        outer.addWidget(cat_box, 1)
         outer.addLayout(btn_row)
+        outer.addWidget(sec_cd, 1)
 
         self._rules_body_host.setLayout(outer)
 
@@ -1430,7 +1498,7 @@ class SettingsDialog(QDialog):
         # App 映射仅按 exe 匹配，不再提供标题匹配输入框（title_contains 仅用于浏览器网站规则）
         self.ed_title_contains = QLineEdit()
         self.ed_title_contains.setVisible(False)
-        self.cb_cat = QComboBox()
+        self.cb_cat = _SettingsComboBox()
         for c in CATEGORIES:
             self.cb_cat.addItem(c)
         self.ed_name = QLineEdit()
@@ -1508,7 +1576,7 @@ class SettingsDialog(QDialog):
         # 选择应用/网站（仅针对已有映射对象）
         app_select_row = QHBoxLayout()
         app_select_row.addWidget(QLabel("选择对象："))
-        self.cb_app_for_text = QComboBox()
+        self.cb_app_for_text = _SettingsComboBox()
         self.cb_app_for_text.setToolTip("仅列出已经在「应用映射」页中配置过的应用和网站。要新增或删除对象，请前往「应用映射」。")
         self.cb_app_for_text.currentTextChanged.connect(self._load_app_specific_texts)
         app_select_row.addWidget(self.cb_app_for_text)
@@ -1550,7 +1618,7 @@ class SettingsDialog(QDialog):
         # 类别选择
         cat_row = QHBoxLayout()
         cat_row.addWidget(QLabel("类别："))
-        self.cb_text_cat = QComboBox()
+        self.cb_text_cat = _SettingsComboBox()
         for c in CATEGORIES: 
             self.cb_text_cat.addItem(c)
         self.cb_text_cat.currentTextChanged.connect(self._load_text_cat)
@@ -2814,11 +2882,7 @@ class SettingsDialog(QDialog):
         result_group.setLayout(result_lay)
         lay.addWidget(result_group)
         
-        # 分隔线
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
-        lay.addWidget(line)
+        lay.addWidget(_light_horizontal_separator())
         
         # 表单
         form = QFormLayout()
@@ -2831,7 +2895,7 @@ class SettingsDialog(QDialog):
         ed_keywords.setPlaceholderText("点击上方检测按钮自动填写")
         form.addRow("关键词:", ed_keywords)
         
-        cb_category = QComboBox()
+        cb_category = _SettingsComboBox()
         categories = ["browse", "video", "ai", "chat", "code", "office", "music", "gamehub"]
         cb_category.addItems(categories)
         form.addRow("分类:", cb_category)
@@ -3285,10 +3349,7 @@ class SettingsDialog(QDialog):
         btn_row1.addStretch(1)
         lay.addLayout(btn_row1)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setFrameShadow(QFrame.Shadow.Sunken)
-        lay.addWidget(sep)
+        lay.addWidget(_light_horizontal_separator())
 
         # 屏蔽标题关键词
         lbl2 = QLabel("屏蔽标题关键词")
@@ -3328,7 +3389,7 @@ class SettingsDialog(QDialog):
         form_conn = QFormLayout()
         form_conn.setSpacing(8)
 
-        self.ai_provider = QComboBox()
+        self.ai_provider = _SettingsComboBox()
         for p in PROVIDER_PRESETS:
             self.ai_provider.addItem(p["name"])
         self.ai_provider.setToolTip(
@@ -3394,7 +3455,7 @@ class SettingsDialog(QDialog):
 
         preset_row = QHBoxLayout()
         preset_row.addWidget(QLabel("预设"))
-        self.ai_preset_combo = QComboBox()
+        self.ai_preset_combo = _SettingsComboBox()
         self.ai_preset_combo.setToolTip("选择一套人设预设，自动填充下方 Prompt")
         self.ai_preset_combo.currentIndexChanged.connect(self._on_preset_changed)
         preset_row.addWidget(self.ai_preset_combo, 1)
