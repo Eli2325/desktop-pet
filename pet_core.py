@@ -61,9 +61,11 @@ class NoticePopup(QWidget):
             "background: rgba(0,0,0,170);"
             "border-radius: 10px;"
             "padding: 10px 14px;"
-            "font-size: 13px;"
             "}"
         )
+        _nf = QFont("Microsoft YaHei UI")
+        _nf.setPointSize(10)
+        self._label.setFont(_nf)
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(18)
         shadow.setOffset(0, 6)
@@ -279,8 +281,11 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         self.hud_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.hud_label.setStyleSheet(
             "QLabel{color:rgba(255,255,255,230); background-color:rgba(0,0,0,120);"
-            "padding:4px 6px; border-radius:6px; font-size:12px;}"
+            "padding:4px 6px; border-radius:6px;}"
         )
+        _hf = QFont("Microsoft YaHei UI")
+        _hf.setPointSize(9)
+        self.hud_label.setFont(_hf)
         self.hud_label.move(10, 10)
         self.hud_label.hide()
 
@@ -1480,7 +1485,11 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         p.drawRoundedRect(0, 0, self.pet_width, self.pet_height, radius, radius)
 
         p.setPen(QColor(255, 255, 255, 240))
-        p.setFont(QFont("Microsoft YaHei", max(10, int(self.pet_height * 0.08)), QFont.Weight.Bold))
+        _psz = max(10, int(self.pet_height * 0.08))
+        _ff = QFont("Microsoft YaHei")
+        _ff.setPointSize(_psz)
+        _ff.setWeight(QFont.Weight.Bold)
+        p.setFont(_ff)
         p.drawText(0, 0, self.pet_width, self.pet_height, Qt.AlignmentFlag.AlignCenter, text)
 
         p.end()

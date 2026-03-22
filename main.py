@@ -1,6 +1,23 @@
 import sys
 import os
+from PyQt6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication, QMessageBox
+
+
+class _QtLogFilter:
+    """过滤 Qt 无害警告（如 QFont::setPointSize(-1)），其余交给原处理器。"""
+    prev_handler = None
+
+
+def _qt_message_handler(mode: QtMsgType, context: QMessageLogContext, message: str) -> None:
+    if "QFont::setPointSize" in message and "(-1)" in message:
+        return
+    ph = _QtLogFilter.prev_handler
+    if ph is not None:
+        ph(mode, context, message)
+    else:
+        # 无前置处理器时与 Qt 默认行为接近：输出到 stderr
+        print(message, file=sys.stderr)
 
 # 导入日志模块
 from logger import logger, log_exception
@@ -51,6 +68,7 @@ def main() -> None:
         
         logger.info("创建QApplication...")
         app = QApplication(sys.argv)
+        _QtLogFilter.prev_handler = qInstallMessageHandler(_qt_message_handler)
         # 只允许通过菜单 Exit 退出，避免关掉设置窗口就把桌宠一起关了
         app.setQuitOnLastWindowClosed(False)
         

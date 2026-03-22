@@ -154,7 +154,6 @@ class ChatConsole(QDialog):
 
         # ── status ──
         self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet("font-size:11px;")
         root.addWidget(self.lbl_status)
 
         # ── history section (固定区域，避免按钮上下跳) ──
@@ -360,12 +359,12 @@ class ChatConsole(QDialog):
             }
             QLabel#ConsoleTitle {
                 color: #1f2937;
-                font-size: 14px;
+                font-size: 11pt;
                 font-weight: 700;
             }
             QLabel {
                 color: #1f2937;
-                font-size: 12px;
+                font-size: 9pt;
             }
             QLabel[statusLevel="ready"] {
                 background: #ecfdf5;
@@ -413,7 +412,7 @@ class ChatConsole(QDialog):
                 border: 1px solid #dbe4f0;
                 border-radius: 8px;
                 padding: 6px 12px;
-                font-size: 12px;
+                font-size: 9pt;
             }
             QPushButton:hover {
                 background: #f8fbff;
@@ -573,7 +572,7 @@ class ChatConsole(QDialog):
 
         top_row = QHBoxLayout()
         lbl_meta = QLabel(f"[{ts}]  {kind}  {tok}tok")
-        lbl_meta.setStyleSheet("font-size:10px; color: gray;")
+        lbl_meta.setStyleSheet("font-size:8pt; color: gray;")
         top_row.addWidget(lbl_meta)
         top_row.addStretch(1)
         row.addLayout(top_row)
@@ -582,7 +581,7 @@ class ChatConsole(QDialog):
         if expanded:
             lbl_text = QLabel(full_text)
             lbl_text.setWordWrap(True)
-            lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
+            lbl_text.setStyleSheet("font-size:9pt; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             row.addWidget(lbl_text)
             _f = lbl_text.font(); _f.setFamily("Segoe UI Emoji"); lbl_text.setFont(_f)
         else:
@@ -590,7 +589,7 @@ class ChatConsole(QDialog):
             a_short = a[:80] + ("…" if len(a) > 80 else "")
             lbl_text = QLabel(f"Q: {q_short}\nA: {a_short}")
             lbl_text.setWordWrap(True)
-            lbl_text.setStyleSheet("font-size:11px; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
+            lbl_text.setStyleSheet("font-size:9pt; font-family: 'Segoe UI Emoji', 'Segoe UI', sans-serif;")
             lbl_text.setMaximumHeight(lbl_text.fontMetrics().lineSpacing() * 3 + 4)
             row.addWidget(lbl_text)
             _f = lbl_text.font(); _f.setFamily("Segoe UI Emoji"); lbl_text.setFont(_f)
