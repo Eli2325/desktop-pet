@@ -181,15 +181,31 @@ def _settings_light_palette() -> QPalette:
     return p
 
 
-def _force_global_tooltip_palette():
-    """Fusion 下 QToolTip 读 QApplication palette；dark-mode 系统可能覆盖，这里强制刷一次。"""
+_GLOBAL_TOOLTIP_QSS = """
+QToolTip {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid #475569;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+"""
+
+
+def _force_global_tooltip_style():
+    """QToolTip 是独立顶层窗口，只有 QApplication 级别的 stylesheet 才能覆盖。
+    调色板和局部 QSS 均不可靠，这里用 app.setStyleSheet 强制写入。"""
     app = QApplication.instance()
     if app is None:
         return
+    existing = app.styleSheet() or ""
+    if "QToolTip" not in existing:
+        app.setStyleSheet(existing + _GLOBAL_TOOLTIP_QSS)
     pal = app.palette()
     for grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
-        pal.setColor(grp, QPalette.ColorRole.ToolTipBase, QColor("#0f172a"))
-        pal.setColor(grp, QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
+        pal.setColor(grp, QPalette.ColorRole.ToolTipBase, QColor("#1e293b"))
+        pal.setColor(grp, QPalette.ColorRole.ToolTipText, QColor("#f1f5f9"))
     app.setPalette(pal)
 
 
@@ -299,15 +315,7 @@ def _settings_stylesheet() -> str:
             border: none;
             border-radius: 4px;
         }
-        /* QToolTip 常为独立小窗，用 QSS 与调色板双保险 */
-        QToolTip {
-            background-color: #0f172a;
-            color: #f8fafc;
-            border: 1px solid #334155;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 12px;
-        }
+        /* QToolTip 样式由 _force_global_tooltip_style 设在 QApplication 级别 */
         /* 文案池：分段按钮 + StackedWidget（避免 QTabWidget/Fusion 顶栏黑线） */
         QWidget#SettingsTextPoolShell {
             background: #ffffff;
@@ -1100,7 +1108,7 @@ class SettingsDialog(QDialog):
         self.setPalette(_settings_light_palette())
         self.setAutoFillBackground(True)
         self.setStyleSheet(_settings_stylesheet())
-        _force_global_tooltip_palette()
+        _force_global_tooltip_style()
 
     def showEvent(self, event):
         super().showEvent(event)

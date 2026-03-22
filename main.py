@@ -71,11 +71,21 @@ def main() -> None:
         
         logger.info("创建QApplication...")
         app = QApplication(sys.argv)
-        # 全局工具提示：高对比深色底 + 浅色字（QToolTip 读 QApplication 调色板，浅灰默认在浅色 UI 里不清晰）
+        # QToolTip 是独立顶层窗口，只有 app 级 stylesheet 才能可靠覆盖样式
+        app.setStyleSheet("""
+QToolTip {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    border: 1px solid #475569;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+""")
         _pal = app.palette()
         for _grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
-            _pal.setColor(_grp, QPalette.ColorRole.ToolTipBase, QColor("#0f172a"))
-            _pal.setColor(_grp, QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
+            _pal.setColor(_grp, QPalette.ColorRole.ToolTipBase, QColor("#1e293b"))
+            _pal.setColor(_grp, QPalette.ColorRole.ToolTipText, QColor("#f1f5f9"))
         app.setPalette(_pal)
         _QtLogFilter.prev_handler = qInstallMessageHandler(_qt_message_handler)
         # 只允许通过菜单 Exit 退出，避免关掉设置窗口就把桌宠一起关了
