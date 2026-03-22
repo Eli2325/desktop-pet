@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QComboBox, QMessageBox, QTextEdit, QGroupBox, QInputDialog, QFrame,
     QProgressDialog, QApplication, QScrollArea, QGridLayout
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QColor, QIcon
 from logger import logger
 from ai_config import (
