@@ -34,6 +34,7 @@ from chat_memory import (
 )
 
 from config_utils import get_config_dir
+from ui_icons import chevron_icon
 
 
 class _AIWorker(QThread):
@@ -132,8 +133,8 @@ class ChatConsole(QDialog):
         self.btn_toggle_size = QToolButton()
         self.btn_toggle_size.setObjectName("ToggleSizeButton")
         self.btn_toggle_size.setToolTip("展开/收起")
-        self.btn_toggle_size.setIconSize(QSize(14, 14))
-        self.btn_toggle_size.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+        self.btn_toggle_size.setIconSize(QSize(16, 16))
+        self.btn_toggle_size.setIcon(chevron_icon(down=True))
         self.btn_toggle_size.clicked.connect(self._toggle_compact_mode)
         top.addWidget(self.btn_toggle_size)
 
@@ -284,7 +285,7 @@ class ChatConsole(QDialog):
             self.ed_input.setVisible(False)
             self.ed_input_line.setVisible(True)
             # 顶部图标：展开=向下
-            self.btn_toggle_size.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+            self.btn_toggle_size.setIcon(chevron_icon(down=True))
             # Frontend theme uses larger paddings; compact height needs extra room.
             self._set_fixed_height(196)
         else:
@@ -296,7 +297,7 @@ class ChatConsole(QDialog):
             self.ed_input.setVisible(True)
             self.ed_input_line.setVisible(False)
             # 顶部图标：收起=向上
-            self.btn_toggle_size.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowUp))
+            self.btn_toggle_size.setIcon(chevron_icon(down=False))
             self._set_fixed_height(540)
 
     def _set_fixed_height(self, h: int):

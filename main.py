@@ -1,6 +1,7 @@
 import sys
 import os
 from PyQt6.QtCore import QMessageLogContext, QtMsgType, qInstallMessageHandler
+from PyQt6.QtGui import QColor, QPalette
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 
@@ -70,6 +71,12 @@ def main() -> None:
         
         logger.info("创建QApplication...")
         app = QApplication(sys.argv)
+        # 全局工具提示：高对比深色底 + 浅色字（QToolTip 读 QApplication 调色板，浅灰默认在浅色 UI 里不清晰）
+        _pal = app.palette()
+        for _grp in (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive):
+            _pal.setColor(_grp, QPalette.ColorRole.ToolTipBase, QColor("#0f172a"))
+            _pal.setColor(_grp, QPalette.ColorRole.ToolTipText, QColor("#f8fafc"))
+        app.setPalette(_pal)
         _QtLogFilter.prev_handler = qInstallMessageHandler(_qt_message_handler)
         # 只允许通过菜单 Exit 退出，避免关掉设置窗口就把桌宠一起关了
         app.setQuitOnLastWindowClosed(False)

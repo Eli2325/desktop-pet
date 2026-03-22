@@ -166,8 +166,8 @@ def _settings_light_palette() -> QPalette:
         QPalette.ColorRole.BrightText: "#ffffff",
         QPalette.ColorRole.Highlight: "#3b82f6",
         QPalette.ColorRole.HighlightedText: "#ffffff",
-        QPalette.ColorRole.ToolTipBase: "#ffffff",
-        QPalette.ColorRole.ToolTipText: "#1f2937",
+        QPalette.ColorRole.ToolTipBase: "#0f172a",
+        QPalette.ColorRole.ToolTipText: "#f8fafc",
         QPalette.ColorRole.PlaceholderText: "#6b7280",
     }
     for role, hex_c in roles.items():
@@ -192,6 +192,10 @@ def _settings_stylesheet() -> str:
         QDialog#SettingsDialog QRadioButton,
         QDialog#SettingsDialog QGroupBox {
             color: #1f2937;
+        }
+        QDialog#SettingsDialog QGroupBox::title {
+            background-color: #ffffff;
+            color: #1d4ed8;
         }
         QWidget#SettingsTabContainer,
         QStackedWidget {
@@ -276,8 +280,58 @@ def _settings_stylesheet() -> str:
             subcontrol-origin: margin;
             subcontrol-position: top left;
             left: 10px;
-            padding: 0 6px;
+            padding: 2px 8px;
+            background-color: #ffffff;
+            color: #1d4ed8;
+            border: none;
+            border-radius: 4px;
+        }
+        /* QToolTip 常为独立小窗，用 QSS 与调色板双保险 */
+        QToolTip {
+            background-color: #0f172a;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        /* 文案池内嵌子标签：去掉 TabBar 默认底框与 pane 顶边重叠导致的黑线 */
+        QTabWidget#SettingsTextPoolTabs QTabBar {
+            border: none;
+            background: transparent;
+        }
+        QTabWidget#SettingsTextPoolTabs::pane {
+            border-left: 1px solid #dbe4f0;
+            border-right: 1px solid #dbe4f0;
+            border-bottom: 1px solid #dbe4f0;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
             background: #ffffff;
+            top: 0px;
+            margin-top: 0px;
+            padding-top: 0px;
+        }
+        QTabWidget#SettingsTextPoolTabs QTabBar::tab {
+            background: #eef2f9;
+            color: #334155;
+            border: 1px solid #dbe4f0;
+            border-bottom: 1px solid #dbe4f0;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            padding: 8px 16px;
+            margin-right: 3px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        QTabWidget#SettingsTextPoolTabs QTabBar::tab:selected {
+            background: #ffffff;
+            color: #1d4ed8;
+            border-bottom-color: #ffffff;
+            margin-bottom: -1px;
+            padding-bottom: 9px;
+        }
+        QTabWidget#SettingsTextPoolTabs QTabBar::tab:hover:!selected {
+            background: #e8f0fe;
         }
         QFrame#SettingsHighlightCard {
             background: #eef5ff;
@@ -543,12 +597,10 @@ def _settings_stylesheet() -> str:
             background: #e8f0fe;
         }
         QComboBox::down-arrow {
-            image: none;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 5px solid #475569;
-            width: 0;
-            height: 0;
+            __COMBO_CHEVRON_IMG__
+            subcontrol-position: center right;
+            subcontrol-origin: padding;
+            right: 5px;
         }
 
         /* 主按钮：避免被「对话框内 QWidget 着色」盖掉白字 */
@@ -571,6 +623,19 @@ def _settings_stylesheet() -> str:
             border: 1px solid #1e3a8a;
         }
     """
+
+
+def _inject_combo_chevron_qss(qss: str) -> str:
+    from ui_icons import COMBO_CHEVRON_DOWN_QSS
+
+    chevron = (
+        f"image: {COMBO_CHEVRON_DOWN_QSS};\n            width: 16px;\n            height: 16px;"
+    )
+    return qss.replace("__COMBO_CHEVRON_IMG__", chevron)
+
+
+def _settings_stylesheet_resolved() -> str:
+    return _inject_combo_chevron_qss(_settings_stylesheet())
 
 
 def _aux_dialog_stylesheet() -> str:
@@ -654,6 +719,12 @@ def _aux_dialog_stylesheet() -> str:
             border-bottom-right-radius: 7px;
             background: #f8fafc;
         }
+        QComboBox::down-arrow {
+            __COMBO_CHEVRON_IMG__
+            subcontrol-position: center right;
+            subcontrol-origin: padding;
+            right: 5px;
+        }
         QComboBox QAbstractItemView {
             background: #ffffff;
             color: #111827;
@@ -680,7 +751,7 @@ def apply_aux_dialog_theme(w: QWidget) -> None:
         w.setStyle(fusion)
     w.setPalette(_settings_light_palette())
     w.setAutoFillBackground(True)
-    w.setStyleSheet(_aux_dialog_stylesheet())
+    w.setStyleSheet(_inject_combo_chevron_qss(_aux_dialog_stylesheet()))
 
 
 def _mb_information(parent, title: str, text: str, icon=QMessageBox.Icon.Information) -> int:
@@ -960,7 +1031,21 @@ class SettingsDialog(QDialog):
             self.setStyle(fusion)
         self.setPalette(_settings_light_palette())
         self.setAutoFillBackground(True)
-        self.setStyleSheet(_settings_stylesheet())
+        self.setStyleSheet(_settings_stylesheet_resolved())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+
+        def _light_caption():
+            try:
+                from win_title_bar import force_light_title_bar_widget
+
+                force_light_title_bar_widget(self)
+            except Exception:
+                pass
+
+        _light_caption()
+        QTimer.singleShot(0, _light_caption)
 
     def _scroll_wrap(self, inner: QWidget) -> QScrollArea:
         sc = _NoWheelChainScrollArea()
@@ -999,25 +1084,50 @@ class SettingsDialog(QDialog):
         outer = QVBoxLayout(container)
         outer.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        # 侧栏本身只有 ~200px，但 QSplitter 默认可能把第一栏分得极宽，会在「白侧栏」和「内容区」之间
+        # 露出一条浅灰空带；用固定宽度的左容器占满第一栏，避免多余水平留白。
+        left_wrap = QWidget()
+        left_wrap.setFixedWidth(200)
+        left_lay = QVBoxLayout(left_wrap)
+        left_lay.setContentsMargins(0, 0, 0, 0)
+        left_lay.setSpacing(0)
         nav = QListWidget()
         nav.setObjectName("SettingsSideNav")
-        nav.setFixedWidth(200)
         nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        nav.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        nav.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         for text in labels:
             nav.addItem(QListWidgetItem(text))
+        left_lay.addWidget(nav)
         stack = QStackedWidget()
         for w in pages:
             stack.addWidget(self._scroll_wrap(w))
         nav.currentRowChanged.connect(stack.setCurrentIndex)
         if nav.count() > 0:
             nav.setCurrentRow(0)
-        splitter.addWidget(nav)
+        splitter.addWidget(left_wrap)
         splitter.addWidget(stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setChildrenCollapsible(False)
         outer.addWidget(splitter)
+
+        def _snap_splitter_sizes():
+            aw = splitter.width()
+            if aw < 80:
+                return
+            hw = splitter.handleWidth()
+            inner = max(0, aw - hw)
+            # 左栏目标 200px；窗口极窄时压缩侧栏，保证右侧至少 ~100px
+            if inner >= 300:
+                lw, rw = 200, inner - 200
+            else:
+                rw = max(100, inner * 2 // 3)
+                lw = max(100, inner - rw)
+            splitter.setSizes([lw, rw])
+
+        QTimer.singleShot(0, _snap_splitter_sizes)
+        QTimer.singleShot(100, _snap_splitter_sizes)
+
         return container
 
     def __init__(self, pet):
@@ -1741,21 +1851,22 @@ class SettingsDialog(QDialog):
         self._populate_mapping_list()
 
     def _build_text(self):
-        main_lay = QVBoxLayout()
-        
-        # ===== 新增：待机闲聊区域（顶部） =====
-        idle_section = QGroupBox("待机闲聊")
-        idle_section.setStyleSheet("QGroupBox { font-weight: bold; color: #2196F3; }")
-        idle_section.setToolTip("桌宠在你空闲时偶尔说一句；间隔在「桌宠设置 → 提醒」里设置。")
-        idle_lay = QVBoxLayout()
-        
+        """文案池：内嵌子 Tab，避免三种内容纵向堆叠过长。"""
+        sub_tabs = QTabWidget()
+        sub_tabs.setObjectName("SettingsTextPoolTabs")
+        sub_tabs.setDocumentMode(True)
+        sub_tabs.setUsesScrollButtons(True)
+
+        # ----- Tab 1：待机闲聊 -----
+        w_idle = QWidget()
+        idle_lay = QVBoxLayout(w_idle)
         hint_idle = QLabel("💡 间隔在「桌宠设置 → 提醒」的「待机闲聊间隔」中设置")
-        hint_idle.setStyleSheet("color: gray; font-size: 11px;")
+        hint_idle.setStyleSheet("color: #64748b; font-size: 11px;")
         idle_lay.addWidget(hint_idle)
-        
+
         self.idle_chat_list = QListWidget()
-        idle_lay.addWidget(self.idle_chat_list)
-        
+        idle_lay.addWidget(self.idle_chat_list, 1)
+
         idle_btn_row = QHBoxLayout()
         self.btn_add_idle_chat = QPushButton("+ 添加闲聊")
         self.btn_del_idle_chat = QPushButton("- 删除选中")
@@ -1765,39 +1876,33 @@ class SettingsDialog(QDialog):
         idle_btn_row.addWidget(self.btn_del_idle_chat)
         idle_btn_row.addStretch()
         idle_lay.addLayout(idle_btn_row)
-        
-        idle_section.setLayout(idle_lay)
-        main_lay.addWidget(idle_section)
-        
-        # ===== 新增：应用专属文案区域 =====
-        app_section = QGroupBox("应用专属文案")
-        app_section.setStyleSheet("QGroupBox { font-weight: bold; }")
-        app_section.setToolTip("为某个应用或网站设置专属气泡文案。请先在「应用映射」中确保该对象已被识别。")
-        app_lay = QVBoxLayout()
-        
-        # 选择应用/网站（仅针对已有映射对象）
+
+        sub_tabs.addTab(w_idle, "待机闲聊")
+
+        # ----- Tab 2：应用专属文案 -----
+        w_app = QWidget()
+        app_lay = QVBoxLayout(w_app)
+
         app_select_row = QHBoxLayout()
         app_select_row.addWidget(QLabel("选择对象："))
         self.cb_app_for_text = _SettingsComboBox()
-        self.cb_app_for_text.setToolTip("仅列出已经在「应用映射」页中配置过的应用和网站。要新增或删除对象，请前往「应用映射」。")
+        self.cb_app_for_text.setToolTip(
+            "仅列出已经在「应用映射」页中配置过的应用和网站。要新增或删除对象，请前往「应用映射」。"
+        )
         self.cb_app_for_text.currentTextChanged.connect(self._load_app_specific_texts)
         app_select_row.addWidget(self.cb_app_for_text)
-        
         app_select_row.addStretch()
         app_lay.addLayout(app_select_row)
-        
-        # 专属文案列表
+
         self.app_text_list = QListWidget()
-        app_lay.addWidget(self.app_text_list)
-        
-        # 混用通用文案复选框
+        app_lay.addWidget(self.app_text_list, 1)
+
         self.cb_app_allow_mix = QCheckBox("☑️ 也使用类别通用文案（专属文案+通用文案混合）")
         self.cb_app_allow_mix.setStyleSheet("QCheckBox { color: #2196F3; font-weight: bold; }")
         self.cb_app_allow_mix.setToolTip("勾选后，专属文案与类别通用文案混合随机；不勾选则仅说专属文案。")
         self.cb_app_allow_mix.stateChanged.connect(self._on_app_allow_mix_changed)
         app_lay.addWidget(self.cb_app_allow_mix)
-        
-        # 操作按钮
+
         app_btn_row = QHBoxLayout()
         self.btn_add_app_text = QPushButton("+ 添加专属文案")
         self.btn_del_app_text = QPushButton("− 删除选中")
@@ -1807,61 +1912,58 @@ class SettingsDialog(QDialog):
         app_btn_row.addWidget(self.btn_del_app_text)
         app_btn_row.addStretch()
         app_lay.addLayout(app_btn_row)
-        
-        app_section.setLayout(app_lay)
-        main_lay.addWidget(app_section)
-        
-        # ===== 原有：类别通用文案区域 =====
-        cat_section = QGroupBox("类别通用文案")
-        cat_section.setStyleSheet("QGroupBox { font-weight: bold; }")
-        cat_section.setToolTip("按应用类别（如办公、聊天）设置的通用气泡文案；无专属文案时会从这里选。")
-        main_content = QVBoxLayout()
-        
-        # 类别选择
+
+        sub_tabs.addTab(w_app, "应用专属文案")
+
+        # ----- Tab 3：类别通用文案 -----
+        w_cat = QWidget()
+        cat_lay = QVBoxLayout(w_cat)
+
         cat_row = QHBoxLayout()
         cat_row.addWidget(QLabel("类别："))
         self.cb_text_cat = _SettingsComboBox()
-        for c in CATEGORIES: 
+        for c in CATEGORIES:
             self.cb_text_cat.addItem(c)
         self.cb_text_cat.currentTextChanged.connect(self._load_text_cat)
         cat_row.addWidget(self.cb_text_cat)
         cat_row.addStretch()
-        main_content.addLayout(cat_row)
-        
-        # 文案列表
+        cat_lay.addLayout(cat_row)
+
         self.text_list = QListWidget()
-        main_content.addWidget(self.text_list)
-        
-        # 按钮行
+        cat_lay.addWidget(self.text_list, 1)
+
         btns = QHBoxLayout()
         self.btn_add_text = QPushButton("新增  Add")
         self.btn_del_text = QPushButton("删除  Delete")
         btn_restore_text = QPushButton("恢复预设文案")
-        
         self.btn_add_text.clicked.connect(self._add_text)
         self.btn_del_text.clicked.connect(self._del_text)
         btn_restore_text.clicked.connect(self._restore_text_pool_defaults)
-        
         btns.addWidget(self.btn_add_text)
         btns.addWidget(self.btn_del_text)
         btns.addWidget(btn_restore_text)
         btns.addStretch()
-        main_content.addLayout(btns)
-        
-        # 提示
+        cat_lay.addLayout(btns)
+
         tip_label = QLabel("💡 提示：双击文案可编辑")
-        tip_label.setStyleSheet("color: gray; font-size: 11px;")
-        main_content.addWidget(tip_label)
-        
-        cat_section.setLayout(main_content)
-        main_lay.addWidget(cat_section)
-        
-        # 连接双击事件
+        tip_label.setStyleSheet("color: #64748b; font-size: 11px;")
+        cat_lay.addWidget(tip_label)
+
+        sub_tabs.addTab(w_cat, "类别通用文案")
+
+        _tb = sub_tabs.tabBar()
+        _tb.setTabToolTip(0, "桌宠在你空闲时偶尔说一句；间隔在「桌宠设置 → 提醒」里设置。")
+        _tb.setTabToolTip(1, "为某个应用或网站设置专属气泡文案。请先在「应用映射」中确保该对象已被识别。")
+        _tb.setTabToolTip(2, "按应用类别（如办公、聊天）设置的通用气泡文案；无专属文案时会从这里选。")
+
+        root = QVBoxLayout()
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(sub_tabs)
+        self.tab_text.setLayout(root)
+
         self.idle_chat_list.itemDoubleClicked.connect(self._idle_chat_item_dbl)
         self.app_text_list.itemDoubleClicked.connect(self._app_text_item_dbl)
         self.text_list.itemDoubleClicked.connect(self._text_item_dbl)
-        
-        self.tab_text.setLayout(main_lay)
 
 
     # ---------- Load / Save ----------
