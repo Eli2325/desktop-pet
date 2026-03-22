@@ -186,8 +186,11 @@ def _settings_stylesheet() -> str:
         QDialog#SettingsDialog {
             background: #f5f7fb;
         }
-        /* 子树统一浅色底与正文色（Win 深色模式下系统会改 Window/Text） */
-        QDialog#SettingsDialog QWidget {
+        /* 不用 QWidget 通配着色，否则会盖住「默认按钮」白字；只给常见文本控件 */
+        QDialog#SettingsDialog QLabel,
+        QDialog#SettingsDialog QCheckBox,
+        QDialog#SettingsDialog QRadioButton,
+        QDialog#SettingsDialog QGroupBox {
             color: #1f2937;
         }
         QWidget#SettingsTabContainer,
@@ -246,9 +249,15 @@ def _settings_stylesheet() -> str:
         QListWidget#SettingsSideNav::item:hover:!selected {
             background: #f3f6fb;
         }
-        QSplitter::handle {
+        QSplitter::handle:horizontal {
             background: #e8eef7;
-            width: 2px;
+            width: 3px;
+            border: none;
+        }
+        QSplitter::handle:vertical {
+            background: #e8eef7;
+            height: 3px;
+            border: none;
         }
         QLabel {
             color: #1f2937;
@@ -341,7 +350,146 @@ def _settings_stylesheet() -> str:
         QFormLayout QLabel {
             color: #1f2937;
         }
+
+        /* 滚动条：避免出现系统深色/纯黑条 */
+        QScrollBar:vertical {
+            background: #eef2f9;
+            width: 12px;
+            margin: 0;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:vertical {
+            background: #c5d0e3;
+            min-height: 28px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #a8b8d8;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0;
+            width: 0;
+            border: none;
+            background: transparent;
+        }
+        QScrollBar:horizontal {
+            background: #eef2f9;
+            height: 12px;
+            margin: 0;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:horizontal {
+            background: #c5d0e3;
+            min-width: 28px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:horizontal:hover {
+            background: #a8b8d8;
+        }
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0;
+            height: 0;
+            border: none;
+            background: transparent;
+        }
+        QAbstractScrollArea::corner {
+            background: #f5f7fb;
+            border: none;
+        }
+
+        /* 数字框右侧按钮：扁平圆角，对齐控制台风格 */
+        QSpinBox, QDoubleSpinBox {
+            padding-right: 22px;
+        }
+        QSpinBox::up-button, QDoubleSpinBox::up-button {
+            subcontrol-origin: border;
+            subcontrol-position: right top;
+            width: 20px;
+            height: 11px;
+            border-left: 1px solid #d4deed;
+            border-bottom: 1px solid #d4deed;
+            border-top-right-radius: 7px;
+            background: #f8fafc;
+        }
+        QSpinBox::down-button, QDoubleSpinBox::down-button {
+            subcontrol-origin: border;
+            subcontrol-position: right bottom;
+            width: 20px;
+            height: 11px;
+            border-left: 1px solid #d4deed;
+            border-top: 1px solid #d4deed;
+            border-bottom-right-radius: 7px;
+            background: #f8fafc;
+        }
+        QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+        QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+            background: #e8f0fe;
+        }
+        QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+            image: none;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-bottom: 5px solid #475569;
+            width: 0;
+            height: 0;
+        }
+        QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+            image: none;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #475569;
+            width: 0;
+            height: 0;
+        }
+
+        QComboBox {
+            padding-right: 26px;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 24px;
+            border-left: 1px solid #d4deed;
+            border-top-right-radius: 7px;
+            border-bottom-right-radius: 7px;
+            background: #f8fafc;
+        }
+        QComboBox::drop-down:hover {
+            background: #e8f0fe;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid #475569;
+            width: 0;
+            height: 0;
+        }
+
+        /* 主按钮：避免被「对话框内 QWidget 着色」盖掉白字 */
+        QPushButton#SettingsPrimaryButton {
+            background: #2f6fed;
+            color: #ffffff;
+            border: 1px solid #2f6fed;
+            font-weight: 700;
+        }
+        QPushButton#SettingsPrimaryButton:hover {
+            background: #255fce;
+            color: #ffffff;
+        }
+        QPushButton#SettingsPrimaryButton:pressed {
+            background: #1d4ed8;
+            color: #ffffff;
+        }
     """
+
+
+class _NoWheelChainScrollArea(QScrollArea):
+    """子区域滚轮到顶/底后不再把滚轮事件传给外层，避免嵌套滚动串联。"""
+
+    def wheelEvent(self, event):
+        super().wheelEvent(event)
+        event.accept()
 
 
 class SettingsDialog(QDialog):
@@ -356,7 +504,7 @@ class SettingsDialog(QDialog):
         self.setStyleSheet(_settings_stylesheet())
 
     def _scroll_wrap(self, inner: QWidget) -> QScrollArea:
-        sc = QScrollArea()
+        sc = _NoWheelChainScrollArea()
         sc.setObjectName("SettingsPageScroll")
         sc.setWidgetResizable(True)
         sc.setFrameShape(QFrame.Shape.NoFrame)
@@ -404,8 +552,9 @@ class SettingsDialog(QDialog):
         super().__init__()
         self.pet = pet
         self.setWindowTitle("桌宠设置")
-        self.setMinimumWidth(820)
-        self.setMinimumHeight(520)
+        self.setMinimumWidth(960)
+        self.setMinimumHeight(560)
+        self.resize(1040, 680)
         self._apply_settings_theme()
 
         # 设置窗口图标（使用和桌宠一样的图标）
@@ -472,6 +621,7 @@ class SettingsDialog(QDialog):
 
         btn_row = QHBoxLayout()
         self.btn_save = QPushButton("保存并应用")
+        self.btn_save.setObjectName("SettingsPrimaryButton")
         self.btn_close = QPushButton("关闭")
         self.btn_save.setDefault(True)
         self.btn_save.setAutoDefault(True)
@@ -919,6 +1069,8 @@ class SettingsDialog(QDialog):
         global_grid.addWidget(self.sp_pending, 1, 3)
         
         group_global.setLayout(global_grid)
+        global_grid.setColumnStretch(1, 1)
+        global_grid.setColumnStretch(3, 1)
         top_lay.addWidget(group_global)
         
         # ---- 各类别冷却时间 ----
@@ -962,7 +1114,10 @@ class SettingsDialog(QDialog):
         cd_layout.addStretch(1)
         cd_widget.setLayout(cd_layout)
         
-        cd_scroll = QScrollArea()
+        cd_scroll = _NoWheelChainScrollArea()
+        cd_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cd_scroll.setBackgroundRole(QPalette.ColorRole.Window)
+        cd_scroll.setAutoFillBackground(True)
         cd_scroll.setWidgetResizable(True)
         cd_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         cd_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -997,7 +1152,10 @@ class SettingsDialog(QDialog):
         cat_mgmt_section.setLayout(cat_mgmt_lay)
         
         # 管理类别区域放入独立滚动区域
-        cat_scroll = QScrollArea()
+        cat_scroll = _NoWheelChainScrollArea()
+        cat_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        cat_scroll.setBackgroundRole(QPalette.ColorRole.Window)
+        cat_scroll.setAutoFillBackground(True)
         cat_scroll.setWidgetResizable(True)
         cat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         cat_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
