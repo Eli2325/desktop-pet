@@ -748,12 +748,17 @@ def _polish_combo_popup(cb: QComboBox) -> None:
     try:
         v = cb.view()
         v.setAutoFillBackground(True)
+        # 去掉 QListView 默认 StyledPanel，否则弹层外圈易出现粗黑边框
+        if isinstance(v, QFrame):
+            v.setFrameShape(QFrame.Shape.NoFrame)
+            v.setLineWidth(0)
         pal_v = QPalette(v.palette())
         pal_v.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Base, QColor("#ffffff"))
         pal_v.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#ffffff"))
         pal_v.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Base, QColor("#ffffff"))
         pal_v.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#ffffff"))
         v.setPalette(pal_v)
+        # 边框由弹出外壳 _style_combo_popup_shell 统一画浅色线，避免双边框
         v.setStyleSheet(
             """
             QAbstractItemView {
@@ -761,7 +766,7 @@ def _polish_combo_popup(cb: QComboBox) -> None:
                 color: #111827;
                 selection-background-color: #dbeafe;
                 selection-color: #1e40af;
-                border: 1px solid #dbe4f0;
+                border: none;
                 outline: none;
                 padding: 0px;
             }
@@ -778,6 +783,42 @@ def _polish_combo_popup(cb: QComboBox) -> None:
             pal_vp.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#ffffff"))
             vp.setPalette(pal_vp)
             vp.setStyleSheet("background-color: #ffffff; border: none;")
+    except Exception:
+        pass
+
+
+def _style_combo_popup_shell(cb: QComboBox) -> None:
+    """弹出后处理：顶层弹窗 + 中间 QFrame 去黑框、浅色描边（独立窗口不继承对话框 QSS）。"""
+    try:
+        view = cb.view()
+        if view is None:
+            return
+        popup = view.window()
+        if popup is None or popup is cb.window():
+            return
+        popup.setObjectName("SettingsComboPopupShell")
+        popup.setAutoFillBackground(True)
+        popup.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        pal = QPalette(popup.palette())
+        pal.setColor(QPalette.ColorGroup.Active, QPalette.ColorRole.Window, QColor("#ffffff"))
+        pal.setColor(QPalette.ColorGroup.Inactive, QPalette.ColorRole.Window, QColor("#ffffff"))
+        popup.setPalette(pal)
+        popup.setStyleSheet(
+            """
+            QWidget#SettingsComboPopupShell {
+                background-color: #ffffff;
+                border: 1px solid #dbe4f0;
+                border-radius: 6px;
+            }
+            """
+        )
+        inner = view.parentWidget()
+        if inner is not None and inner is not popup:
+            inner.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            if isinstance(inner, QFrame):
+                inner.setFrameShape(QFrame.Shape.NoFrame)
+                inner.setLineWidth(0)
+            inner.setStyleSheet("background-color: #ffffff; border: none;")
     except Exception:
         pass
 
@@ -905,6 +946,7 @@ class _SettingsComboBox(QComboBox):
             w = max(self.width(), popup.width())
             h = popup.height()
             popup.setGeometry(bottom_left.x(), bottom_left.y(), w, h)
+            _style_combo_popup_shell(self)
         except Exception:
             pass
 
