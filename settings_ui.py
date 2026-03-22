@@ -1229,6 +1229,23 @@ class SettingsDialog(QDialog):
             ["行为", "睡眠", "提醒", "安静与路径"],
             [self.page_pet_behavior, self.page_pet_sleep, self.page_pet_reminders, self.page_pet_help],
         )
+        # 桌宠「恢复默认」放在侧栏+内容区之上，避免误以为只在「提醒」子页生效
+        self._pet_settings_outer = QWidget()
+        _pet_lay = QVBoxLayout(self._pet_settings_outer)
+        _pet_lay.setContentsMargins(0, 0, 0, 0)
+        _pet_lay.setSpacing(8)
+        self._pet_restore_hint = QLabel(
+            "本页「恢复桌宠默认」仅影响行为/睡眠/提醒（pet_settings.json），不会改动 AI、应用气泡与文案池。"
+        )
+        self._pet_restore_hint.setWordWrap(True)
+        self._pet_restore_hint.setStyleSheet("color: #64748b; font-size: 11px;")
+        _pet_lay.addWidget(self._pet_restore_hint)
+        self._pet_restore_btn_row = QWidget()
+        self._pet_restore_btn_row_lay = QHBoxLayout(self._pet_restore_btn_row)
+        self._pet_restore_btn_row_lay.setContentsMargins(0, 0, 0, 0)
+        _pet_lay.addWidget(self._pet_restore_btn_row)
+        _pet_lay.addWidget(self.tab_pet, 1)
+
         self.tab_bubble = self._make_split_tab(
             ["总开关 & 规则", "应用映射", "文案池", "过滤器"],
             [self.tab_rules, self.tab_mapping, self.tab_text, self.tab_filters],
@@ -1239,7 +1256,7 @@ class SettingsDialog(QDialog):
         )
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.tab_pet, "🐾 桌宠设置")
+        self.tabs.addTab(self._pet_settings_outer, "🐾 桌宠设置")
         self.tabs.addTab(self.tab_bubble, "💬 应用气泡")
         self.tabs.addTab(self.tab_ai, "🤖 AI 功能")
 
@@ -1647,16 +1664,17 @@ class SettingsDialog(QDialog):
 
         lay_r.addLayout(form_rem)
 
-        btn_row = QHBoxLayout()
-        self.btn_restore_defaults = QPushButton("恢复默认设置")
-        self.btn_restore_defaults.clicked.connect(self._restore_pet_defaults)
-        btn_row.addStretch(1)
-        btn_row.addWidget(self.btn_restore_defaults)
-        btn_row.addStretch(1)
-        lay_r.addLayout(btn_row)
-
         lay_r.addStretch(1)
         self.page_pet_reminders.setLayout(lay_r)
+
+        self.btn_restore_defaults = QPushButton("恢复桌宠默认（行为+睡眠+提醒）")
+        self.btn_restore_defaults.setToolTip(
+            "将「行为」「睡眠」「提醒」全部恢复为出厂默认，写入 pet_settings.json；不影响应用气泡与 AI。"
+        )
+        self.btn_restore_defaults.clicked.connect(self._restore_pet_defaults)
+        self._pet_restore_btn_row_lay.addStretch(1)
+        self._pet_restore_btn_row_lay.addWidget(self.btn_restore_defaults)
+        self._pet_restore_btn_row_lay.addStretch(1)
 
     def _build_rules(self):
         top_lay = QVBoxLayout()
@@ -1743,8 +1761,10 @@ class SettingsDialog(QDialog):
         cat_outer.addWidget(cat_scroll, 1)
 
         btn_row = QHBoxLayout()
-        self.btn_restore_values = QPushButton("恢复默认数值")
-        self.btn_restore_values.setToolTip("将触发概率、显示时长、冷却时间等恢复为默认，不删除你添加的类别。")
+        self.btn_restore_values = QPushButton("恢复气泡规则数值默认")
+        self.btn_restore_values.setToolTip(
+            "将触发概率、显示时长、前台稳定阈值、待定数、各类冷却等恢复为默认；不删除你添加的类别。"
+        )
         self.btn_restore_values.setStyleSheet(
             "QPushButton { padding: 8px; font-weight: bold; background: #ffffff; color: #1f2937; border: 1px solid #dbe4f0; }"
             "QPushButton:hover { background: #f8fbff; color: #111827; }"
@@ -2015,9 +2035,10 @@ class SettingsDialog(QDialog):
         btns = QHBoxLayout()
         self.btn_add_text = QPushButton("新增  Add")
         self.btn_del_text = QPushButton("删除  Delete")
-        btn_restore_text = QPushButton("恢复预设文案")
+        btn_restore_text = QPushButton("找回被删预设文案")
         self.btn_add_text.clicked.connect(self._add_text)
         self.btn_del_text.clicked.connect(self._del_text)
+        btn_restore_text.setToolTip("恢复你在文案池里删掉的系统预设句；你添加的自定义文案会保留。")
         btn_restore_text.clicked.connect(self._restore_text_pool_defaults)
         btns.addWidget(self.btn_add_text)
         btns.addWidget(self.btn_del_text)
@@ -2239,7 +2260,7 @@ class SettingsDialog(QDialog):
         reply = _mb_question(
             self,
             "确认恢复",
-            "将恢复本页设置（移动速度、睡眠、喝水/运动提醒等），仅影响 pet_settings.json，不会改动文案池与应用映射。\n\n是否继续？",
+            "将「行为」「睡眠」「提醒」全部恢复为出厂默认，仅写入 pet_settings.json；不会改动应用气泡、文案池与 AI。\n\n是否继续？",
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -2283,14 +2304,14 @@ class SettingsDialog(QDialog):
         except Exception:
             pass
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "已恢复默认设置（仅行为与提醒相关，未改动文案与应用映射）"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "已恢复桌宠默认（行为+睡眠+提醒）；未改动应用气泡、文案池与 AI。"))
 
     def _restore_rules_values(self):
         """恢复Rules标签页默认数值（不删除用户类别）"""
         from PyQt6.QtCore import QTimer
         
         reply = _mb_question(self, "确认恢复",
-            "确定要恢复规则默认数值吗？\n\n将恢复：\n- 触发概率\n- 显示时长\n- 冷却时间\n等所有规则参数\n\n（不会删除用户添加的类别）")
+            "确定要恢复气泡规则的全部数值默认值吗？\n\n将恢复：\n- 触发概率\n- 显示时长\n- 前台稳定阈值、待定数\n- 各类冷却时间\n\n（不会删除用户添加的类别）")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -2310,7 +2331,7 @@ class SettingsDialog(QDialog):
         for cat, sp in self.cooldowns.items():
             sp.setValue(cooldown_defaults.get(cat, 600))
         
-        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "规则数值已恢复为默认设置"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "气泡规则数值已恢复为默认"))
 
     def _reset_categories(self):
         """重置类别：删除用户自定义类别，恢复为系统默认"""
@@ -2372,7 +2393,7 @@ class SettingsDialog(QDialog):
         from PyQt6.QtCore import QTimer
         
         reply = _mb_question(self, "确认恢复",
-            "确定要恢复文案池默认设置吗？\n\n将会：\n- 恢复所有被删除的预设文案\n- 保留用户添加的自定义文案")
+            "确定要找回被删的预设文案吗？\n\n将会：\n- 恢复所有被删除的系统预设句\n- 保留你添加的自定义文案")
         
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -2385,7 +2406,7 @@ class SettingsDialog(QDialog):
         cat = self.cb_text_cat.currentText()
         self._load_text_cat(cat)
         
-        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "文案池已恢复默认设置\n所有预设文案已找回"))
+        QTimer.singleShot(0, lambda: _mb_information(self, "已恢复", "被删预设文案已全部找回；你的自定义文案仍保留。"))
 
     def _show_toast(self, text: str, duration_ms: int = 2500):
         """Non-blocking toast notification near the Apply button."""
