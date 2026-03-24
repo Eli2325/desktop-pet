@@ -1,9 +1,10 @@
 import os
+import sys
 import time
 from typing import Optional, List, Dict
 
 from PyQt6.QtCore import Qt, QTimer, QPoint, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QCursor, QGuiApplication, QAction, QIcon
+from PyQt6.QtGui import QCursor, QGuiApplication, QAction, QIcon, QColor, QPalette
 from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -509,6 +510,46 @@ class ChatConsole(QDialog):
                 border-radius: 4px;
                 background: #bfdbfe;
             }
+            QScrollBar:vertical {
+                background: #f3f6fb;
+                width: 12px;
+                border: 1px solid #dbe4f0;
+                border-radius: 6px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #c6d2e6;
+                min-height: 28px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #a9bad8;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:horizontal {
+                background: #f3f6fb;
+                height: 12px;
+                border: 1px solid #dbe4f0;
+                border-radius: 6px;
+                margin: 0;
+            }
+            QScrollBar::handle:horizontal {
+                background: #c6d2e6;
+                min-width: 28px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #a9bad8;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+                border: none;
+                background: transparent;
+            }
             """
         )
 
@@ -679,7 +720,7 @@ class ChatConsole(QDialog):
         if not entry:
             return
         old_prompt = str(entry.get("prompt", "") or "")
-        new_prompt, ok = QInputDialog.getMultiLineText(self, "修改这条记录", "Prompt：", old_prompt)
+        new_prompt, ok = self._ask_multiline("修改这条记录", "Prompt：", old_prompt)
         if not ok:
             return
         new_prompt = (new_prompt or "").strip()
@@ -690,22 +731,53 @@ class ChatConsole(QDialog):
         self._pending_update_log_id = int(log_id)
         self._send_override(prompt_text=new_prompt, force_screenshot=is_image)
 
+    def _polish_aux_dialog(self, w: QWidget) -> None:
+        """给控制台的辅助弹窗统一浅色外观和浅色标题栏。"""
+        pal = QPalette(w.palette())
+        pal.setColor(QPalette.ColorRole.Window, QColor("#f5f7fb"))
+        pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+        pal.setColor(QPalette.ColorRole.Button, QColor("#ffffff"))
+        pal.setColor(QPalette.ColorRole.Text, QColor("#1f2937"))
+        pal.setColor(QPalette.ColorRole.ButtonText, QColor("#1f2937"))
+        w.setPalette(pal)
+        w.setAutoFillBackground(True)
+        w.setStyleSheet(
+            "QDialog { background: #f5f7fb; color: #1f2937; }"
+            "QLabel { color: #1f2937; }"
+            "QLineEdit, QTextEdit { background: #ffffff; color: #111827; "
+            "border: 1px solid #d4deed; border-radius: 8px; padding: 6px; }"
+            "QPushButton { min-width: 88px; padding: 6px 10px; "
+            "background: #ffffff; color: #1f2937; border: 1px solid #dbe4f0; border-radius: 8px; }"
+            "QPushButton:hover { background: #f8fbff; border: 1px solid #b8d0f2; }"
+            "QPushButton:pressed { background: #eaf2ff; }"
+        )
+        if sys.platform == "win32":
+            try:
+                from win_title_bar import force_light_title_bar_widget
+                force_light_title_bar_widget(w)
+                QTimer.singleShot(0, lambda: force_light_title_bar_widget(w))
+            except Exception:
+                pass
+
+    def _ask_multiline(self, title: str, label: str, text: str) -> tuple[str, bool]:
+        d = QInputDialog(self)
+        d.setInputMode(QInputDialog.InputMode.TextInput)
+        d.setOption(QInputDialog.InputDialogOption.UsePlainTextEditForTextInput, True)
+        d.setWindowTitle(title)
+        d.setLabelText(label)
+        d.setTextValue(text)
+        self._polish_aux_dialog(d)
+        ok = d.exec() == QDialog.DialogCode.Accepted
+        return d.textValue(), ok
+
     def _confirm_dialog(self, title: str, text: str) -> bool:
-        """统一浅色确认框，避免系统深色主题导致弹窗风格突兀。"""
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Question)
         box.setWindowTitle(title)
         box.setText(text)
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.No)
-        box.setStyleSheet(
-            "QMessageBox { background: #f5f7fb; color: #1f2937; }"
-            "QLabel { color: #1f2937; }"
-            "QPushButton { min-width: 88px; padding: 6px 10px; "
-            "background: #ffffff; color: #1f2937; border: 1px solid #dbe4f0; border-radius: 8px; }"
-            "QPushButton:hover { background: #f8fbff; }"
-            "QPushButton:pressed { background: #eaf2ff; }"
-        )
+        self._polish_aux_dialog(box)
         return box.exec() == QMessageBox.StandardButton.Yes
 
     def _history_delete(self, log_id: int):
