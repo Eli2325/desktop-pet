@@ -5,6 +5,7 @@ A customizable desktop pet for Windows, built with PyQt6.
 ## Download
 
 - Latest release (Windows package): [v1.0.0](https://github.com/Eli2325/desktop-pet/releases/tag/v1.0.0)
+- Baidu Netdisk (CN mirror): https://pan.baidu.com/s/1PAdM-lBGmQIQhdQZXBcEHA (Code: `xkaq`)
 
 ## Features
 
