@@ -690,14 +690,32 @@ class ChatConsole(QDialog):
         self._pending_update_log_id = int(log_id)
         self._send_override(prompt_text=new_prompt, force_screenshot=is_image)
 
+    def _confirm_dialog(self, title: str, text: str) -> bool:
+        """统一浅色确认框，避免系统深色主题导致弹窗风格突兀。"""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        box.setStyleSheet(
+            "QMessageBox { background: #f5f7fb; color: #1f2937; }"
+            "QLabel { color: #1f2937; }"
+            "QPushButton { min-width: 88px; padding: 6px 10px; "
+            "background: #ffffff; color: #1f2937; border: 1px solid #dbe4f0; border-radius: 8px; }"
+            "QPushButton:hover { background: #f8fbff; }"
+            "QPushButton:pressed { background: #eaf2ff; }"
+        )
+        return box.exec() == QMessageBox.StandardButton.Yes
+
     def _history_delete(self, log_id: int):
-        if QMessageBox.question(self, "删除", "确定删除这条记录吗？") != QMessageBox.StandardButton.Yes:
+        if not self._confirm_dialog("删除", "确定删除这条记录吗？"):
             return
         delete_log(int(log_id))
         self._reload_history()
 
     def _clear_history(self):
-        if QMessageBox.question(self, "确认", "确定要清空记忆黑匣子吗？") != QMessageBox.StandardButton.Yes:
+        if not self._confirm_dialog("确认", "确定要清空记忆黑匣子吗？"):
             return
         clear_logs()
         self._reload_history()
