@@ -75,8 +75,20 @@ def load_movie_for_key(
 ) -> Optional[QMovie]:
     path = os.path.join(assets_dir, filename)
     if not os.path.exists(path):
-        return None
+        # Fallback: case-insensitive filename match (for packaged assets on mixed-case filesystems)
+        target = filename.lower()
+        try:
+            for name in os.listdir(assets_dir):
+                if name.lower() == target:
+                    path = os.path.join(assets_dir, name)
+                    break
+            else:
+                return None
+        except Exception:
+            return None
     mv = QMovie(path)
+    if not mv.isValid():
+        return None
     mv.setCacheMode(QMovie.CacheMode.CacheAll)
     mv.setScaledSize(QSize(pet_width, pet_height))
     return mv

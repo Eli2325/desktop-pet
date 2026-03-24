@@ -1197,11 +1197,16 @@ class SettingsDialog(QDialog):
 
         # 设置窗口图标（使用和桌宠一样的图标）
         try:
-            icon_path = os.path.join(pet.assets_dir, "icon.ico")
-            if not os.path.exists(icon_path):
-                icon_path = os.path.join(pet.assets_dir, "icon.png")
-            if os.path.exists(icon_path):
-                self.setWindowIcon(QIcon(icon_path))
+            if hasattr(pet, "app_icon") and isinstance(pet.app_icon, QIcon) and not pet.app_icon.isNull():
+                self.setWindowIcon(pet.app_icon)
+            else:
+                icon_path = os.path.join(pet.assets_dir, "icon.ico")
+                if not os.path.exists(icon_path):
+                    icon_path = os.path.join(pet.assets_dir, "icon.png")
+                if os.path.exists(icon_path):
+                    icon = QIcon(icon_path)
+                    if not icon.isNull():
+                        self.setWindowIcon(icon)
         except Exception:
             pass
 

@@ -93,6 +93,29 @@ class NoticePopup(QWidget):
 
 
 class DesktopPet(QMainWindow, PetActivityBubblesMixin):
+    def _load_app_icon(self) -> QIcon:
+        """Load app icon robustly in both dev and packaged modes."""
+        candidates = [
+            "icon.ico", "icon.png", "icon.ICO", "icon.PNG",
+        ]
+        for name in candidates:
+            p = os.path.join(self.assets_dir, name)
+            if os.path.exists(p):
+                ic = QIcon(p)
+                if not ic.isNull():
+                    return ic
+        # Fallback: case-insensitive scan for icon.(ico|png)
+        try:
+            for name in os.listdir(self.assets_dir):
+                low = name.lower()
+                if low.startswith("icon.") and (low.endswith(".ico") or low.endswith(".png")):
+                    ic = QIcon(os.path.join(self.assets_dir, name))
+                    if not ic.isNull():
+                        return ic
+        except Exception:
+            pass
+        return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+
     def __init__(self):
         super().__init__()
 
@@ -102,6 +125,9 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         
         # assets目录：从exe内部读取（只读）
         self.assets_dir = get_resource_path("assets")
+        self.app_icon = self._load_app_icon()
+        if not self.app_icon.isNull():
+            self.setWindowIcon(self.app_icon)
         
         # 配置文件目录：用户可写目录
         config_dir = get_config_dir()
@@ -422,19 +448,8 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             self.tray = None
             return
-        
-        # 使用自定义图标，优先png，其次ico，最后用系统默认
-        icon_png = os.path.join(self.assets_dir, "icon.png")
-        icon_ico = os.path.join(self.assets_dir, "icon.ico")
-        
-        if os.path.exists(icon_png):
-            icon = QIcon(icon_png)
-        elif os.path.exists(icon_ico):
-            icon = QIcon(icon_ico)
-        else:
-            icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
-        
-        self.tray = QSystemTrayIcon(icon, self)
+
+        self.tray = QSystemTrayIcon(self.app_icon, self)
         self.tray.setToolTip("Desktop Pet")
 
         menu = QMenu()
@@ -1124,24 +1139,15 @@ class DesktopPet(QMainWindow, PetActivityBubblesMixin):
         now = QTime.currentTime()
         hour = now.hour()
         minute = now.minute()
-        second = now.second()
 
-        # 只用于「睡觉外观」：夜=19:00~次日07:00
-        if not hasattr(self, "sleep_theme"):
-            self.sleep_theme = ("night" if (hour >= 19 or hour < 7) else "day")
-
-        # 两个时间点触发睡觉外观切换：07:00 与 19:00
-        if minute == 0 and second == 0:
-            if hour == 7:
-                self.sleep_theme = "day"
-                self.is_night = False
-                if self.state == "SLEEP":
-                    self.update_appearance(force=True)
-            elif hour == 19:
-                self.sleep_theme = "night"
-                self.is_night = True
-                if self.state == "SLEEP":
-                    self.update_appearance(force=True)
+        # 睡觉外观按当前时间直接判定，避免计时器错过“整点整秒”导致不切换
+        target_night = (hour >= 19 or hour < 7)
+        target_theme = "night" if target_night else "day"
+        prev_theme = getattr(self, "sleep_theme", None)
+        self.sleep_theme = target_theme
+        self.is_night = target_night
+        if prev_theme is not None and prev_theme != target_theme and self.state == "SLEEP":
+            self.update_appearance(force=True)
 
         # 喝水/运动提示：按“间隔”触发；稳定态才“显示”，忙时进入延后队列
         if self.state in ["IDLE", "WALK", "SLEEP"]:
