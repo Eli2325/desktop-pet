@@ -7,9 +7,12 @@ venv/
 logs/
 build/
 dist/
+build_pack/
+dist_pack/
 *.spec
 v1.0/
 pet_core_backup.py
+.cursor/
 *.txt
 !README.txt
 !LOG_GUIDE.txt

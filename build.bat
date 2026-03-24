@@ -1,57 +1,58 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo 桌面宠物打包工具
+echo Desktop Pet Packager
 echo ========================================
 echo.
 
-echo [1/4] 清理旧的打包文件...
-if exist "dist" rmdir /s /q dist
-if exist "build" rmdir /s /q build
-echo 完成！
+echo [1/4] Cleaning old packaging artifacts...
+if exist "dist_pack" rmdir /s /q dist_pack
+if exist "build_pack" rmdir /s /q build_pack
+echo Done.
 echo.
 
-echo [2/4] 开始打包...
-pyinstaller build_pet.spec --clean
+echo [2/4] Building onedir package...
+pyinstaller build_pet.spec --clean --distpath dist_pack --workpath build_pack
 if errorlevel 1 (
-    echo 打包失败！请检查错误信息。
+    echo Build failed. Please check the error output above.
     pause
     exit /b 1
 )
-echo 完成！
+echo Done.
 echo.
 
-echo [3/4] 复制assets到exe同目录...
-xcopy /E /I /Y assets "dist\桌面宠物\assets"
-echo 完成！
+echo [3/4] Copying external assets for customization...
+if not exist "dist_pack\DesktopPet\assets" mkdir "dist_pack\DesktopPet\assets"
+xcopy /E /I /Y assets "dist_pack\DesktopPet\assets" >nul
+echo Done.
 echo.
 
-echo [4/4] 创建使用说明...
+echo [4/4] Writing package notes...
 (
-echo 桌面宠物 v1.0
+echo Desktop Pet package
 echo.
-echo 运行方式：
-echo 双击 "桌面宠物.exe" 即可运行
+echo Run:
+echo Double-click "DesktopPet.exe"
 echo.
-echo 更换外观：
-echo 1. 打开 assets 文件夹
-echo 2. 用同名GIF文件替换即可（如 idle.gif、walk.gif 等）
-echo 3. 重启桌宠生效
+echo Customize artwork:
+echo 1. Open the assets folder next to the exe
+echo 2. Replace GIF files with the same names (idle.gif, walk.gif, etc.)
+echo 3. Restart the app
 echo.
-echo 配置文件位置：
-echo C:\Users\你的用户名\.desktop_pet
+echo User config folder:
+echo C:\Users\YourUserName\.desktop_pet
 echo.
-echo 问题反馈：
-echo [在这里填写你的联系方式或GitHub链接]
-) > "dist\桌面宠物\使用说明.txt"
-echo 完成！
+echo Feedback:
+echo [Add your contact info here]
+) > "dist_pack\DesktopPet\README_PACKAGE.txt"
+echo Done.
 echo.
 
 echo ========================================
-echo 打包完成！
-echo 输出目录：dist\桌面宠物\
+echo Build complete.
+echo Output: dist_pack\DesktopPet\
 echo ========================================
 echo.
-echo 按任意键打开输出目录...
+echo Press any key to open output folder...
 pause >nul
-explorer "dist\桌面宠物"
+explorer "dist_pack\DesktopPet"

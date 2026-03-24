@@ -1,66 +1,68 @@
-# PowerShell 打包脚本
+# PowerShell packaging script
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "桌面宠物打包工具" -ForegroundColor Cyan
+Write-Host "Desktop Pet Packager" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 1. 清理旧文件
-Write-Host "[1/4] 清理旧的打包文件..." -ForegroundColor Yellow
-if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
-if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-Write-Host "完成！" -ForegroundColor Green
+# 1. Clean old artifacts
+Write-Host "[1/4] Cleaning old packaging artifacts..." -ForegroundColor Yellow
+if (Test-Path "dist_pack") { Remove-Item -Recurse -Force "dist_pack" }
+if (Test-Path "build_pack") { Remove-Item -Recurse -Force "build_pack" }
+Write-Host "Done." -ForegroundColor Green
 Write-Host ""
 
-# 2. 打包
-Write-Host "[2/4] 开始打包..." -ForegroundColor Yellow
-pyinstaller build_pet.spec --clean
+# 2. Build onedir package
+Write-Host "[2/4] Building onedir package..." -ForegroundColor Yellow
+pyinstaller build_pet.spec --clean --distpath dist_pack --workpath build_pack
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "打包失败！请检查错误信息。" -ForegroundColor Red
-    Read-Host "按回车键退出"
+    Write-Host "Build failed. Please check the error output above." -ForegroundColor Red
+    Read-Host "Press Enter to exit"
     exit 1
 }
-Write-Host "完成！" -ForegroundColor Green
+Write-Host "Done." -ForegroundColor Green
 Write-Host ""
 
-# 3. 复制assets
-Write-Host "[3/4] 复制assets到exe同目录..." -ForegroundColor Yellow
-Copy-Item -Path "assets" -Destination "dist\桌面宠物\assets" -Recurse -Force
-Write-Host "完成！" -ForegroundColor Green
+# 3. Copy external assets for customization
+Write-Host "[3/4] Copying external assets for customization..." -ForegroundColor Yellow
+if (-not (Test-Path "dist_pack\DesktopPet\assets")) {
+    New-Item -ItemType Directory -Path "dist_pack\DesktopPet\assets" | Out-Null
+}
+Copy-Item -Path "assets\*" -Destination "dist_pack\DesktopPet\assets" -Recurse -Force
+Write-Host "Done." -ForegroundColor Green
 Write-Host ""
 
-# 4. 创建使用说明
-Write-Host "[4/4] 创建使用说明..." -ForegroundColor Yellow
+# 4. Write package notes
+Write-Host "[4/4] Writing package notes..." -ForegroundColor Yellow
 $readme = @"
-桌面宠物 v1.0
+Desktop Pet package
 
-运行方式：
-双击 "桌面宠物.exe" 即可运行
+Run:
+Double-click "DesktopPet.exe"
 
-更换外观：
-1. 打开 assets 文件夹
-2. 用同名GIF文件替换即可（如 idle.gif、walk.gif 等）
-3. 重启桌宠生效
+Customize artwork:
+1. Open the assets folder next to the exe
+2. Replace GIF files with the same names (idle.gif, walk.gif, etc.)
+3. Restart the app
 
-配置文件位置：
-C:\Users\你的用户名\.desktop_pet
+User config folder:
+C:\Users\YourUserName\.desktop_pet
 
-问题反馈：
-[在这里填写你的联系方式或GitHub链接]
+[Add your contact info here]
 "@
-$readme | Out-File -FilePath "dist\桌面宠物\使用说明.txt" -Encoding UTF8
-Write-Host "完成！" -ForegroundColor Green
+$readme | Out-File -FilePath "dist_pack\DesktopPet\README_PACKAGE.txt" -Encoding UTF8
+Write-Host "Done." -ForegroundColor Green
 Write-Host ""
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "打包完成！" -ForegroundColor Green
-Write-Host "输出目录：dist\桌面宠物\" -ForegroundColor Cyan
+Write-Host "Build complete." -ForegroundColor Green
+Write-Host "Output: dist_pack\DesktopPet\" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 打开输出目录
-Write-Host "正在打开输出目录..." -ForegroundColor Yellow
-Start-Process "dist\桌面宠物"
+# Open output folder
+Write-Host "Opening output folder..." -ForegroundColor Yellow
+Start-Process "dist_pack\DesktopPet"
 
-Read-Host "按回车键退出"
+Read-Host "Press Enter to exit"
