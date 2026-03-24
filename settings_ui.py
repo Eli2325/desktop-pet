@@ -2231,6 +2231,18 @@ class SettingsDialog(QDialog):
                 is_preset = any(p.get("prompt", "").strip() == saved_prompt for p in presets)
                 self._custom_prompt_saved = "" if is_preset else saved_prompt
                 self.ai_system_prompt.setPlainText(s.system_prompt or "")
+                # 同步预设下拉框的选中状态
+                if hasattr(self, "ai_preset_combo"):
+                    matched_idx = -1
+                    for i, p in enumerate(presets):
+                        if p.get("prompt", "").strip() == saved_prompt:
+                            matched_idx = i
+                            break
+                    if matched_idx >= 0:
+                        self.ai_preset_combo.setCurrentIndex(matched_idx)
+                    else:
+                        # 自定义 prompt，选中最后一项"（自定义）"
+                        self.ai_preset_combo.setCurrentIndex(self.ai_preset_combo.count() - 1)
             if hasattr(self, "ai_min_reply"):
                 self.ai_min_reply.setValue(int(getattr(s, "reply_min_length", 20)))
             if hasattr(self, "ai_max_bubble"):
@@ -4020,13 +4032,23 @@ class SettingsDialog(QDialog):
             return
         presets = load_prompt_presets()
         if 0 <= idx < len(presets):
+            # 选择了预设：清空自定义草稿，避免残留
+            self._custom_prompt_saved = ""
             self.ai_system_prompt.blockSignals(True)
             self.ai_system_prompt.setPlainText(presets[idx].get("prompt", ""))
             self.ai_system_prompt.blockSignals(False)
         else:
-            saved = getattr(self, "_custom_prompt_saved", "")
+            # 选择了"（自定义）"：显示配置文件中保存的内容（如果不是预设的话）
+            try:
+                s = load_ai_settings()
+                saved_prompt = (s.system_prompt or "").strip()
+                # 检查是否匹配任何预设
+                is_preset = any(p.get("prompt", "").strip() == saved_prompt for p in presets)
+                display_text = "" if is_preset else saved_prompt
+            except Exception:
+                display_text = ""
             self.ai_system_prompt.blockSignals(True)
-            self.ai_system_prompt.setPlainText(saved)
+            self.ai_system_prompt.setPlainText(display_text)
             self.ai_system_prompt.blockSignals(False)
 
     def _on_prompt_text_edited(self):
@@ -4043,7 +4065,7 @@ class SettingsDialog(QDialog):
                 matched = True
                 break
         if not matched:
-            self._custom_prompt_saved = current_text
+            # 用户手动编辑了内容，且不匹配任何预设 → 切到"（自定义）"
             self.ai_preset_combo.blockSignals(True)
             self.ai_preset_combo.setCurrentIndex(self.ai_preset_combo.count() - 1)
             self.ai_preset_combo.blockSignals(False)
