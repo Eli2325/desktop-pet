@@ -2,6 +2,10 @@
 
 A customizable desktop pet for Windows, built with PyQt6.
 
+## Download
+
+- Latest release (Windows package): [v1.0.0](https://github.com/Eli2325/desktop-pet/releases/tag/v1.0.0)
+
 ## Features
 
 - Animated desktop pet with drag, poke, headpat, wall/ceiling actions
@@ -48,16 +52,10 @@ Files include:
 
 This project is packaged in **onedir** mode (not single-file), so end users can replace artwork in `assets`.
 
-### Option A: Batch script
+Manual packaging command:
 
-```bat
-build.bat
-```
-
-### Option B: PowerShell script
-
-```powershell
-.\build.ps1
+```bash
+pyinstaller build_pet.spec --clean --distpath dist_pack --workpath build_pack
 ```
 
 Output folder:
@@ -65,8 +63,8 @@ Output folder:
 ```text
 dist_pack\DesktopPet\
 ├── DesktopPet.exe
-├── assets\
-└── _internal\
+├── assets\        # optional external override folder (copy from project assets)
+└── _internal\assets\  # bundled fallback assets
 ```
 
 ## Customize Artwork
